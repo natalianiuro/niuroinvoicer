@@ -1,17 +1,28 @@
-import { contractors } from "@/lib/data/mock";
+import { useState } from "react";
+import Modal from "@/components/ui/Modal";
+import SearchBar from "@/components/ui/SearchBar";
+import { useStore, newId } from "@/lib/store";
 
 function getInitials(name) {
   return name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 }
 
+const STATUS_OPTIONS = [
+  { value: "not_started", label: "Not Started", badgeClass: "badge--gray" },
+  { value: "in_progress", label: "In Progress", badgeClass: "badge--yellow" },
+  { value: "complete", label: "Complete", badgeClass: "badge--green" },
+];
+
+const DEFAULT_STEPS = [
+  { label: "Contract signed", done: false },
+  { label: "NDA signed", done: false },
+  { label: "Access granted", done: false },
+  { label: "Intro call done", done: false },
+];
+
 function OnboardingBadge({ status }) {
-  const map = {
-    not_started: ["badge--gray", "Not Started"],
-    in_progress: ["badge--yellow", "In Progress"],
-    complete: ["badge--green", "Complete"],
-  };
-  const [cls, label] = map[status] || ["badge--gray", status];
-  return <span className={`badge ${cls}`}>{label}</span>;
+  const opt = STATUS_OPTIONS.find((o) => o.value === status) || STATUS_OPTIONS[0];
+  return <span className={`badge ${opt.badgeClass}`}>{opt.label}</span>;
 }
 
 function ProgressBar({ steps }) {
@@ -22,25 +33,160 @@ function ProgressBar({ steps }) {
       <div className="progress-bar-track">
         <div className="progress-bar-fill" style={{ width: `${pct}%` }} />
       </div>
-      <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
-        {done}/{steps.length}
-      </span>
+      <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{done}/{steps.length}</span>
     </div>
   );
 }
 
+// ─── Add Contractor Form ──────────────────────────────────────
+function AddContractorModal({ onClose }) {
+  const { dispatch } = useStore();
+  const [form, setForm] = useState({
+    name: "", role: "", email: "",
+    startDate: "", contractEndDate: "", notes: "",
+  });
+
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!form.name.trim()) return;
+    dispatch({
+      type: "ADD_CONTRACTOR",
+      payload: {
+        id: newId(),
+        ...form,
+        onboardingStatus: "not_started",
+        onboardingSteps: DEFAULT_STEPS,
+      },
+    });
+    onClose();
+  };
+
+  return (
+    <Modal title="Add Contractor" onClose={onClose}>
+      <form onSubmit={handleSubmit}>
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Full Name *</label>
+            <input className="form-input" value={form.name} onChange={(e) => set("name", e.target.value)} required />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Role</label>
+            <input className="form-input" value={form.role} onChange={(e) => set("role", e.target.value)} />
+          </div>
+        </div>
+        <div className="form-group">
+          <label className="form-label">Email</label>
+          <input className="form-input" type="email" value={form.email} onChange={(e) => set("email", e.target.value)} />
+        </div>
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Start Date</label>
+            <input className="form-input" type="date" value={form.startDate} onChange={(e) => set("startDate", e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Contract End Date</label>
+            <input className="form-input" type="date" value={form.contractEndDate} onChange={(e) => set("contractEndDate", e.target.value)} />
+          </div>
+        </div>
+        <div className="form-group">
+          <label className="form-label">Notes</label>
+          <textarea className="form-textarea" value={form.notes} onChange={(e) => set("notes", e.target.value)} />
+        </div>
+        <div className="form-actions">
+          <button type="button" className="btn btn--ghost" onClick={onClose}>Cancel</button>
+          <button type="submit" className="btn btn--primary">Add Contractor</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+// ─── Onboarding Detail Modal ──────────────────────────────────
+function OnboardingModal({ contractor, onClose }) {
+  const { dispatch } = useStore();
+
+  const toggle = (i) => {
+    dispatch({ type: "TOGGLE_ONBOARDING_STEP", payload: { contractorId: contractor.id, stepIndex: i } });
+  };
+
+  return (
+    <Modal title={`Onboarding — ${contractor.name}`} onClose={onClose}>
+      <p style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 16 }}>
+        {contractor.role} · {contractor.email}
+      </p>
+      <div className="checklist">
+        {contractor.onboardingSteps.map((step, i) => (
+          <label
+            key={i}
+            className={`checklist-item${step.done ? " checklist-item--done" : ""}`}
+          >
+            <input type="checkbox" checked={step.done} onChange={() => toggle(i)} />
+            <span>{step.label}</span>
+          </label>
+        ))}
+      </div>
+      {contractor.notes && (
+        <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 16, borderTop: "1px solid var(--border-light)", paddingTop: 12 }}>
+          {contractor.notes}
+        </p>
+      )}
+      <div className="form-actions">
+        <button className="btn btn--ghost" onClick={onClose}>Close</button>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────
 export default function Contractors() {
+  const { state } = useStore();
+  const { contractors } = state;
+  const [search, setSearch] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [showAdd, setShowAdd] = useState(false);
+  const [selected, setSelected] = useState(null);
+
+  const filtered = contractors.filter((c) => {
+    const matchSearch =
+      c.name.toLowerCase().includes(search.toLowerCase()) ||
+      c.role.toLowerCase().includes(search.toLowerCase());
+    const matchStatus = filterStatus === "all" || c.onboardingStatus === filterStatus;
+    return matchSearch && matchStatus;
+  });
+
+  const tabs = [
+    { value: "all", label: "All" },
+    ...STATUS_OPTIONS,
+  ];
+
   return (
     <div>
       <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
           <h1 className="page-title">Contractors</h1>
-          <p className="page-subtitle">{contractors.length} active contractors</p>
+          <p className="page-subtitle">{contractors.length} contractors</p>
         </div>
-        <button className="btn btn--primary">+ Add Contractor</button>
+        <button className="btn btn--primary" onClick={() => setShowAdd(true)}>+ Add Contractor</button>
       </div>
 
       <div className="section-block">
+        <div className="table-toolbar">
+          <div className="filter-tabs">
+            {tabs.map((t) => (
+              <button
+                key={t.value}
+                className={`filter-tab${filterStatus === t.value ? " filter-tab--active" : ""}`}
+                onClick={() => setFilterStatus(t.value)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          <SearchBar value={search} onChange={setSearch} placeholder="Search contractors…" />
+        </div>
+
         <table className="hr-table">
           <thead>
             <tr>
@@ -53,8 +199,10 @@ export default function Contractors() {
             </tr>
           </thead>
           <tbody>
-            {contractors.map((c) => (
-              <tr key={c.id}>
+            {filtered.length === 0 ? (
+              <tr><td colSpan={6}><div className="empty-state">No contractors match your filter.</div></td></tr>
+            ) : filtered.map((c) => (
+              <tr key={c.id} style={{ cursor: "pointer" }} onClick={() => setSelected(c)}>
                 <td>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <div className="reminder-avatar">{getInitials(c.name)}</div>
@@ -65,8 +213,8 @@ export default function Contractors() {
                   </div>
                 </td>
                 <td style={{ color: "var(--text-secondary)" }}>{c.role}</td>
-                <td style={{ color: "var(--text-secondary)" }}>{c.startDate}</td>
-                <td style={{ color: "var(--text-secondary)" }}>{c.contractEndDate}</td>
+                <td style={{ color: "var(--text-secondary)" }}>{c.startDate || "—"}</td>
+                <td style={{ color: "var(--text-secondary)" }}>{c.contractEndDate || "—"}</td>
                 <td><OnboardingBadge status={c.onboardingStatus} /></td>
                 <td><ProgressBar steps={c.onboardingSteps} /></td>
               </tr>
@@ -74,6 +222,14 @@ export default function Contractors() {
           </tbody>
         </table>
       </div>
+
+      {showAdd && <AddContractorModal onClose={() => setShowAdd(false)} />}
+      {selected && (
+        <OnboardingModal
+          contractor={state.contractors.find((c) => c.id === selected.id) || selected}
+          onClose={() => setSelected(null)}
+        />
+      )}
     </div>
   );
 }

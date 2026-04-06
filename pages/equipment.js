@@ -1,43 +1,126 @@
-import { equipment } from "@/lib/data/mock";
+import { useState } from "react";
+import Modal from "@/components/ui/Modal";
+import SearchBar from "@/components/ui/SearchBar";
+import StatusSelect from "@/components/ui/StatusSelect";
+import { useStore, newId } from "@/lib/store";
 
-function StatusBadge({ status }) {
-  const map = {
-    available: ["badge--green", "Available"],
-    assigned: ["badge--blue", "Assigned"],
-    in_repair: ["badge--yellow", "In Repair"],
-    retired: ["badge--gray", "Retired"],
-  };
-  const [cls, label] = map[status] || ["badge--gray", status];
-  return <span className={`badge ${cls}`}>{label}</span>;
-}
+const STATUS_OPTIONS = [
+  { value: "available", label: "Available", badgeClass: "badge--green" },
+  { value: "assigned", label: "Assigned", badgeClass: "badge--blue" },
+  { value: "in_repair", label: "In Repair", badgeClass: "badge--yellow" },
+  { value: "retired", label: "Retired", badgeClass: "badge--gray" },
+];
 
-function TypeTag({ type }) {
-  const map = {
-    laptop: "Laptop",
-    monitor: "Monitor",
-    phone: "Phone",
-    other: "Other",
+const TYPES = ["laptop", "monitor", "phone", "other"];
+
+function AddEquipmentModal({ onClose }) {
+  const { dispatch, state } = useStore();
+  const [form, setForm] = useState({
+    name: "", type: "laptop", serialNumber: "", assignedTo: "", status: "available",
+  });
+
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!form.name.trim()) return;
+    dispatch({
+      type: "ADD_EQUIPMENT",
+      payload: {
+        id: newId(),
+        ...form,
+        assignedTo: form.assignedTo.trim() || null,
+        status: form.assignedTo.trim() ? "assigned" : form.status,
+      },
+    });
+    onClose();
   };
+
+  const teamNames = state.team.map((m) => m.name);
+
   return (
-    <span className="badge badge--gray">{map[type] || type}</span>
+    <Modal title="Add Equipment" onClose={onClose}>
+      <form onSubmit={handleSubmit}>
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Item Name *</label>
+            <input className="form-input" value={form.name} onChange={(e) => set("name", e.target.value)} placeholder='e.g. MacBook Pro 14"' required />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Type</label>
+            <select className="form-select" value={form.type} onChange={(e) => set("type", e.target.value)}>
+              {TYPES.map((t) => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Serial #</label>
+            <input className="form-input" value={form.serialNumber} onChange={(e) => set("serialNumber", e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Assigned To</label>
+            <input
+              className="form-input"
+              value={form.assignedTo}
+              onChange={(e) => set("assignedTo", e.target.value)}
+              list="team-list"
+              placeholder="Leave blank if available"
+            />
+            <datalist id="team-list">
+              {teamNames.map((n) => <option key={n} value={n} />)}
+            </datalist>
+          </div>
+        </div>
+        {!form.assignedTo && (
+          <div className="form-group">
+            <label className="form-label">Status</label>
+            <select className="form-select" value={form.status} onChange={(e) => set("status", e.target.value)}>
+              {STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+        )}
+        <div className="form-actions">
+          <button type="button" className="btn btn--ghost" onClick={onClose}>Cancel</button>
+          <button type="submit" className="btn btn--primary">Add Equipment</button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
+const TYPE_LABELS = { laptop: "Laptop", monitor: "Monitor", phone: "Phone", other: "Other" };
+
 export default function Equipment() {
+  const { state, dispatch } = useStore();
+  const { equipment } = state;
+  const [search, setSearch] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [showAdd, setShowAdd] = useState(false);
+
+  const filtered = equipment.filter((e) => {
+    const matchSearch =
+      e.name.toLowerCase().includes(search.toLowerCase()) ||
+      (e.assignedTo || "").toLowerCase().includes(search.toLowerCase()) ||
+      e.serialNumber.toLowerCase().includes(search.toLowerCase());
+    const matchStatus = filterStatus === "all" || e.status === filterStatus;
+    return matchSearch && matchStatus;
+  });
+
   const available = equipment.filter((e) => e.status === "available").length;
   const assigned = equipment.filter((e) => e.status === "assigned").length;
+  const inRepair = equipment.filter((e) => e.status === "in_repair").length;
+
+  const tabs = [{ value: "all", label: "All" }, ...STATUS_OPTIONS];
 
   return (
     <div>
-      <div
-        className="page-header"
-        style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}
-      >
+      <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
           <h1 className="page-title">Equipment</h1>
           <p className="page-subtitle">{equipment.length} items · {available} available</p>
         </div>
-        <button className="btn btn--primary">+ Add Item</button>
+        <button className="btn btn--primary" onClick={() => setShowAdd(true)}>+ Add Item</button>
       </div>
 
       <div className="card-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)", maxWidth: 640 }}>
@@ -55,13 +138,26 @@ export default function Equipment() {
         </div>
         <div className="summary-card">
           <div className="summary-card__label">In Repair</div>
-          <div className="summary-card__value">
-            {equipment.filter((e) => e.status === "in_repair").length}
-          </div>
+          <div className="summary-card__value">{inRepair}</div>
         </div>
       </div>
 
       <div className="section-block">
+        <div className="table-toolbar">
+          <div className="filter-tabs">
+            {tabs.map((t) => (
+              <button
+                key={t.value}
+                className={`filter-tab${filterStatus === t.value ? " filter-tab--active" : ""}`}
+                onClick={() => setFilterStatus(t.value)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          <SearchBar value={search} onChange={setSearch} placeholder="Search equipment…" />
+        </div>
+
         <table className="hr-table">
           <thead>
             <tr>
@@ -73,22 +169,32 @@ export default function Equipment() {
             </tr>
           </thead>
           <tbody>
-            {equipment.map((item) => (
+            {filtered.length === 0 ? (
+              <tr><td colSpan={5}><div className="empty-state">No equipment matches your filter.</div></td></tr>
+            ) : filtered.map((item) => (
               <tr key={item.id}>
                 <td style={{ fontWeight: 500 }}>{item.name}</td>
-                <td><TypeTag type={item.type} /></td>
-                <td style={{ fontFamily: "monospace", fontSize: 12, color: "var(--text-muted)" }}>
-                  {item.serialNumber}
-                </td>
+                <td><span className="badge badge--gray">{TYPE_LABELS[item.type] || item.type}</span></td>
+                <td style={{ fontFamily: "monospace", fontSize: 12, color: "var(--text-muted)" }}>{item.serialNumber || "—"}</td>
                 <td style={{ color: item.assignedTo ? "var(--text-primary)" : "var(--text-muted)" }}>
                   {item.assignedTo || "—"}
                 </td>
-                <td><StatusBadge status={item.status} /></td>
+                <td>
+                  <StatusSelect
+                    value={item.status}
+                    options={STATUS_OPTIONS}
+                    onChange={(status) =>
+                      dispatch({ type: "UPDATE_EQUIPMENT_STATUS", payload: { id: item.id, status } })
+                    }
+                  />
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {showAdd && <AddEquipmentModal onClose={() => setShowAdd(false)} />}
     </div>
   );
 }

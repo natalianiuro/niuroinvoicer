@@ -1,14 +1,20 @@
 import "@/styles/globals.css";
 import Layout from "@/components/layout/Layout";
+import { StoreProvider } from "@/lib/store";
 
 export default function App({ Component, pageProps }) {
-  // Allow pages to define their own layout (e.g. generator skips sidebar)
   if (Component.getLayout) {
-    return Component.getLayout(<Component {...pageProps} />);
+    return (
+      <StoreProvider>
+        {Component.getLayout(<Component {...pageProps} />)}
+      </StoreProvider>
+    );
   }
   return (
-    <Layout>
-      <Component {...pageProps} />
-    </Layout>
+    <StoreProvider>
+      <Layout>
+        <Component {...pageProps} />
+      </Layout>
+    </StoreProvider>
   );
 }
