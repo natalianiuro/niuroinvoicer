@@ -1,3 +1,4 @@
+import Head from "next/head";
 import Link from "next/link";
 import { useStore } from "@/lib/store";
 
@@ -47,7 +48,9 @@ export default function Dashboard() {
   const recentInvoices = invoices.slice(0, 3);
 
   return (
-    <div>
+    <>
+      <Head><title>Dashboard — Niuro HR</title></Head>
+      <div>
       <div className="page-header">
         <h1 className="page-title">Dashboard</h1>
         <p className="page-subtitle">Welcome back — here&apos;s what&apos;s happening.</p>
@@ -134,5 +137,6 @@ export default function Dashboard() {
         </table>
       </div>
     </div>
+    </>
   );
 }

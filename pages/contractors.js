@@ -1,7 +1,11 @@
 import { useState } from "react";
+import Head from "next/head";
 import Modal from "@/components/ui/Modal";
 import SearchBar from "@/components/ui/SearchBar";
+import DeleteButton from "@/components/ui/DeleteButton";
 import { useStore, newId } from "@/lib/store";
+import { useToast } from "@/components/ui/Toast";
+import { Users } from "lucide-react";
 
 function getInitials(name) {
   return name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
@@ -38,14 +42,12 @@ function ProgressBar({ steps }) {
   );
 }
 
-// ─── Add Contractor Form ──────────────────────────────────────
 function AddContractorModal({ onClose }) {
   const { dispatch } = useStore();
+  const toast = useToast();
   const [form, setForm] = useState({
-    name: "", role: "", email: "",
-    startDate: "", contractEndDate: "", notes: "",
+    name: "", role: "", email: "", startDate: "", contractEndDate: "", notes: "",
   });
-
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
   const handleSubmit = (e) => {
@@ -53,13 +55,9 @@ function AddContractorModal({ onClose }) {
     if (!form.name.trim()) return;
     dispatch({
       type: "ADD_CONTRACTOR",
-      payload: {
-        id: newId(),
-        ...form,
-        onboardingStatus: "not_started",
-        onboardingSteps: DEFAULT_STEPS,
-      },
+      payload: { id: newId(), ...form, onboardingStatus: "not_started", onboardingSteps: DEFAULT_STEPS },
     });
+    toast(`${form.name} added as contractor`, "success");
     onClose();
   };
 
@@ -103,9 +101,9 @@ function AddContractorModal({ onClose }) {
   );
 }
 
-// ─── Onboarding Detail Modal ──────────────────────────────────
 function OnboardingModal({ contractor, onClose }) {
   const { dispatch } = useStore();
+  const toast = useToast();
 
   const toggle = (i) => {
     dispatch({ type: "TOGGLE_ONBOARDING_STEP", payload: { contractorId: contractor.id, stepIndex: i } });
@@ -114,14 +112,11 @@ function OnboardingModal({ contractor, onClose }) {
   return (
     <Modal title={`Onboarding — ${contractor.name}`} onClose={onClose}>
       <p style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 16 }}>
-        {contractor.role} · {contractor.email}
+        {contractor.role}{contractor.email ? ` · ${contractor.email}` : ""}
       </p>
       <div className="checklist">
         {contractor.onboardingSteps.map((step, i) => (
-          <label
-            key={i}
-            className={`checklist-item${step.done ? " checklist-item--done" : ""}`}
-          >
+          <label key={i} className={`checklist-item${step.done ? " checklist-item--done" : ""}`}>
             <input type="checkbox" checked={step.done} onChange={() => toggle(i)} />
             <span>{step.label}</span>
           </label>
@@ -139,9 +134,9 @@ function OnboardingModal({ contractor, onClose }) {
   );
 }
 
-// ─── Page ─────────────────────────────────────────────────────
 export default function Contractors() {
-  const { state } = useStore();
+  const { state, dispatch } = useStore();
+  const toast = useToast();
   const { contractors } = state;
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -156,80 +151,98 @@ export default function Contractors() {
     return matchSearch && matchStatus;
   });
 
-  const tabs = [
-    { value: "all", label: "All" },
-    ...STATUS_OPTIONS,
-  ];
+  const tabs = [{ value: "all", label: "All" }, ...STATUS_OPTIONS];
+
+  const handleDelete = (c) => {
+    dispatch({ type: "DELETE_CONTRACTOR", payload: c.id });
+    toast(`${c.name} removed`, "default");
+  };
 
   return (
-    <div>
-      <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-        <div>
-          <h1 className="page-title">Contractors</h1>
-          <p className="page-subtitle">{contractors.length} contractors</p>
-        </div>
-        <button className="btn btn--primary" onClick={() => setShowAdd(true)}>+ Add Contractor</button>
-      </div>
-
-      <div className="section-block">
-        <div className="table-toolbar">
-          <div className="filter-tabs">
-            {tabs.map((t) => (
-              <button
-                key={t.value}
-                className={`filter-tab${filterStatus === t.value ? " filter-tab--active" : ""}`}
-                onClick={() => setFilterStatus(t.value)}
-              >
-                {t.label}
-              </button>
-            ))}
+    <>
+      <Head><title>Contractors — Niuro HR</title></Head>
+      <div>
+        <div className="page-header-row">
+          <div>
+            <h1 className="page-title">Contractors</h1>
+            <p className="page-subtitle">{contractors.length} contractors</p>
           </div>
-          <SearchBar value={search} onChange={setSearch} placeholder="Search contractors…" />
+          <button className="btn btn--primary" onClick={() => setShowAdd(true)}>+ Add Contractor</button>
         </div>
 
-        <table className="hr-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Role</th>
-              <th>Start Date</th>
-              <th>Contract End</th>
-              <th>Onboarding</th>
-              <th>Progress</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 ? (
-              <tr><td colSpan={6}><div className="empty-state">No contractors match your filter.</div></td></tr>
-            ) : filtered.map((c) => (
-              <tr key={c.id} style={{ cursor: "pointer" }} onClick={() => setSelected(c)}>
-                <td>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div className="reminder-avatar">{getInitials(c.name)}</div>
-                    <div>
-                      <div style={{ fontWeight: 500 }}>{c.name}</div>
-                      <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{c.email}</div>
-                    </div>
-                  </div>
-                </td>
-                <td style={{ color: "var(--text-secondary)" }}>{c.role}</td>
-                <td style={{ color: "var(--text-secondary)" }}>{c.startDate || "—"}</td>
-                <td style={{ color: "var(--text-secondary)" }}>{c.contractEndDate || "—"}</td>
-                <td><OnboardingBadge status={c.onboardingStatus} /></td>
-                <td><ProgressBar steps={c.onboardingSteps} /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+        <div className="section-block">
+          <div className="table-toolbar">
+            <div className="filter-tabs">
+              {tabs.map((t) => (
+                <button
+                  key={t.value}
+                  className={`filter-tab${filterStatus === t.value ? " filter-tab--active" : ""}`}
+                  onClick={() => setFilterStatus(t.value)}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+            <SearchBar value={search} onChange={setSearch} placeholder="Search contractors…" />
+          </div>
 
-      {showAdd && <AddContractorModal onClose={() => setShowAdd(false)} />}
-      {selected && (
-        <OnboardingModal
-          contractor={state.contractors.find((c) => c.id === selected.id) || selected}
-          onClose={() => setSelected(null)}
-        />
-      )}
-    </div>
+          {filtered.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-state__icon"><Users size={28} color="var(--text-muted)" /></div>
+              <div className="empty-state__title">No contractors found</div>
+              <div className="empty-state__sub">
+                {search || filterStatus !== "all" ? "Try adjusting your filters." : "Add your first contractor to get started."}
+              </div>
+              {!search && filterStatus === "all" && (
+                <button className="btn btn--primary" onClick={() => setShowAdd(true)}>+ Add Contractor</button>
+              )}
+            </div>
+          ) : (
+            <table className="hr-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Role</th>
+                  <th>Start Date</th>
+                  <th>Contract End</th>
+                  <th>Onboarding</th>
+                  <th>Progress</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((c) => (
+                  <tr key={c.id} style={{ cursor: "pointer" }} onClick={() => setSelected(c)}>
+                    <td>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <div className="reminder-avatar">{getInitials(c.name)}</div>
+                        <div>
+                          <div style={{ fontWeight: 500 }}>{c.name}</div>
+                          <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{c.email}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{ color: "var(--text-secondary)" }}>{c.role || "—"}</td>
+                    <td style={{ color: "var(--text-secondary)" }}>{c.startDate || "—"}</td>
+                    <td style={{ color: "var(--text-secondary)" }}>{c.contractEndDate || "—"}</td>
+                    <td><OnboardingBadge status={c.onboardingStatus} /></td>
+                    <td><ProgressBar steps={c.onboardingSteps} /></td>
+                    <td><DeleteButton onDelete={() => handleDelete(c)} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {showAdd && <AddContractorModal onClose={() => setShowAdd(false)} />}
+        {selected && (
+          <OnboardingModal
+            contractor={state.contractors.find((c) => c.id === selected.id) || selected}
+            onClose={() => setSelected(null)}
+          />
+        )}
+      </div>
+    </>
   );
 }

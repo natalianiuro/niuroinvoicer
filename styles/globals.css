@@ -572,3 +572,224 @@ a { color: inherit; text-decoration: none; }
   text-decoration: line-through;
   color: var(--text-muted);
 }
+
+/* ─── Toast notifications ─── */
+.toast-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 200;
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 16px;
+  background: var(--text-primary);
+  color: #fff;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 450;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+  animation: toast-in 0.2s ease;
+  pointer-events: auto;
+  max-width: 320px;
+}
+
+.toast--success { background: #2d6a4f; }
+.toast--error   { background: #7f1d1d; }
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Delete button (row action) ─── */
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+tr:hover .row-actions { opacity: 1; }
+
+.btn-delete {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 5px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  transition: background 0.1s, color 0.1s;
+}
+
+.btn-delete:hover {
+  background: var(--red-bg);
+  color: var(--red);
+}
+
+/* ─── Confirm delete inline ─── */
+.confirm-delete {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.confirm-delete__yes {
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: var(--red-bg);
+  color: var(--red);
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.confirm-delete__no {
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: var(--border-light);
+  color: var(--text-secondary);
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+/* ─── Mobile sidebar ─── */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.3);
+  z-index: 49;
+}
+
+.mobile-header {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 52px;
+  background: var(--sidebar-bg);
+  border-bottom: 1px solid var(--border);
+  align-items: center;
+  padding: 0 16px;
+  gap: 12px;
+  z-index: 40;
+}
+
+.mobile-header__logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.mobile-header__logo img { width: 24px; height: 24px; object-fit: contain; }
+
+.hamburger {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  color: var(--text-primary);
+  margin-left: auto;
+}
+
+.hamburger:hover { background: var(--border-light); }
+
+@media (max-width: 768px) {
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.22s ease;
+    z-index: 50;
+  }
+
+  .sidebar--open {
+    transform: translateX(0);
+  }
+
+  .sidebar-overlay {
+    display: block;
+  }
+
+  .mobile-header {
+    display: flex;
+  }
+
+  .main-content {
+    margin-left: 0;
+    padding: 72px 16px 32px;
+  }
+
+  .card-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .table-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .filter-tabs {
+    flex-wrap: wrap;
+  }
+
+  .section-block {
+    overflow-x: auto;
+  }
+
+  .hr-table {
+    min-width: 600px;
+  }
+}
+
+/* ─── Empty state (improved) ─── */
+.empty-state {
+  padding: 48px 20px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.empty-state__icon {
+  font-size: 28px;
+  margin-bottom: 10px;
+}
+
+.empty-state__title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.empty-state__sub {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+/* ─── Page title with doc title ─── */
+.page-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 28px;
+}

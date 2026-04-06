@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
+import { useState, useEffect } from "react";
 import {
   LayoutDashboard,
   Users,
@@ -7,6 +8,8 @@ import {
   FileText,
   CalendarHeart,
   Monitor,
+  Menu,
+  X,
 } from "lucide-react";
 
 const navItems = [
@@ -20,9 +23,15 @@ const navItems = [
 
 export default function Sidebar() {
   const router = useRouter();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
-  return (
-    <aside className="sidebar">
+  // Close sidebar on route change
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [router.pathname]);
+
+  const nav = (
+    <>
       <div className="sidebar-logo">
         <img src="/logo.png" alt="Niuro" className="sidebar-logo-img" />
         <span className="sidebar-logo-text">Niuro HR</span>
@@ -51,6 +60,44 @@ export default function Sidebar() {
           <span>Invoice Generator</span>
         </Link>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Desktop sidebar */}
+      <aside className="sidebar">{nav}</aside>
+
+      {/* Mobile header */}
+      <div className="mobile-header">
+        <div className="mobile-header__logo">
+          <img src="/logo.png" alt="Niuro" />
+          <span>Niuro HR</span>
+        </div>
+        <button className="hamburger" onClick={() => setMobileOpen(true)} aria-label="Open menu">
+          <Menu size={20} />
+        </button>
+      </div>
+
+      {/* Mobile sidebar drawer */}
+      {mobileOpen && (
+        <>
+          <div className="sidebar-overlay" onClick={() => setMobileOpen(false)} />
+          <aside className="sidebar sidebar--open">
+            <button
+              onClick={() => setMobileOpen(false)}
+              style={{
+                position: "absolute", top: 14, right: 12,
+                background: "none", border: "none", cursor: "pointer",
+                color: "var(--text-muted)", display: "flex",
+              }}
+            >
+              <X size={18} />
+            </button>
+            {nav}
+          </aside>
+        </>
+      )}
+    </>
   );
 }

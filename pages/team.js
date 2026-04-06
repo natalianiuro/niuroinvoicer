@@ -1,13 +1,18 @@
 import { useState } from "react";
+import Head from "next/head";
 import Modal from "@/components/ui/Modal";
 import SearchBar from "@/components/ui/SearchBar";
+import DeleteButton from "@/components/ui/DeleteButton";
 import { useStore, newId } from "@/lib/store";
+import { useToast } from "@/components/ui/Toast";
+import { CalendarHeart } from "lucide-react";
 
 function getInitials(name) {
   return name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 }
 
 function getDaysUntil(dateStr) {
+  if (!dateStr) return null;
   const today = new Date();
   const date = new Date(dateStr);
   date.setFullYear(today.getFullYear());
@@ -16,11 +21,13 @@ function getDaysUntil(dateStr) {
 }
 
 function formatDate(dateStr) {
+  if (!dateStr) return "—";
   const date = new Date(dateStr);
   return date.toLocaleDateString("en-US", { month: "long", day: "numeric" });
 }
 
 function DaysChip({ days }) {
+  if (days === null) return <span style={{ color: "var(--text-muted)", fontSize: 12 }}>—</span>;
   if (days === 0) return <span className="badge badge--green">Today!</span>;
   if (days <= 7) return <span className="badge badge--yellow">in {days}d</span>;
   if (days <= 30) return <span className="badge badge--blue">in {days}d</span>;
@@ -29,16 +36,15 @@ function DaysChip({ days }) {
 
 function AddMemberModal({ onClose }) {
   const { dispatch } = useStore();
-  const [form, setForm] = useState({
-    name: "", role: "", email: "", birthday: "", workAnniversary: "",
-  });
-
+  const toast = useToast();
+  const [form, setForm] = useState({ name: "", role: "", email: "", birthday: "", workAnniversary: "" });
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!form.name.trim()) return;
     dispatch({ type: "ADD_TEAM_MEMBER", payload: { id: newId(), ...form } });
+    toast(`${form.name} added to team`, "success");
     onClose();
   };
 
@@ -79,7 +85,8 @@ function AddMemberModal({ onClose }) {
 }
 
 export default function Team() {
-  const { state } = useStore();
+  const { state, dispatch } = useStore();
+  const toast = useToast();
   const { team } = state;
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
@@ -87,67 +94,88 @@ export default function Team() {
   const members = team
     .filter((m) =>
       m.name.toLowerCase().includes(search.toLowerCase()) ||
-      m.role.toLowerCase().includes(search.toLowerCase())
+      (m.role || "").toLowerCase().includes(search.toLowerCase())
     )
     .map((m) => ({
       ...m,
-      birthdayDays: m.birthday ? getDaysUntil(m.birthday) : null,
-      anniversaryDays: m.workAnniversary ? getDaysUntil(m.workAnniversary) : null,
+      birthdayDays: getDaysUntil(m.birthday),
+      anniversaryDays: getDaysUntil(m.workAnniversary),
     }));
 
   return (
-    <div>
-      <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-        <div>
-          <h1 className="page-title">Team</h1>
-          <p className="page-subtitle">{team.length} members · birthdays & anniversaries</p>
-        </div>
-        <button className="btn btn--primary" onClick={() => setShowAdd(true)}>+ Add Member</button>
-      </div>
-
-      <div className="section-block">
-        <div className="table-toolbar">
-          <div />
-          <SearchBar value={search} onChange={setSearch} placeholder="Search team…" />
+    <>
+      <Head><title>Team — Niuro HR</title></Head>
+      <div>
+        <div className="page-header-row">
+          <div>
+            <h1 className="page-title">Team</h1>
+            <p className="page-subtitle">{team.length} members · birthdays &amp; anniversaries</p>
+          </div>
+          <button className="btn btn--primary" onClick={() => setShowAdd(true)}>+ Add Member</button>
         </div>
 
-        <table className="hr-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Role</th>
-              <th>Birthday</th>
-              <th></th>
-              <th>Work Anniversary</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {members.length === 0 ? (
-              <tr><td colSpan={6}><div className="empty-state">No members found.</div></td></tr>
-            ) : members.map((m) => (
-              <tr key={m.id}>
-                <td>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div className="reminder-avatar">{getInitials(m.name)}</div>
-                    <div>
-                      <div style={{ fontWeight: 500 }}>{m.name}</div>
-                      <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{m.email}</div>
-                    </div>
-                  </div>
-                </td>
-                <td style={{ color: "var(--text-secondary)" }}>{m.role}</td>
-                <td>{m.birthday ? formatDate(m.birthday) : "—"}</td>
-                <td>{m.birthdayDays !== null ? <DaysChip days={m.birthdayDays} /> : "—"}</td>
-                <td>{m.workAnniversary ? formatDate(m.workAnniversary) : "—"}</td>
-                <td>{m.anniversaryDays !== null ? <DaysChip days={m.anniversaryDays} /> : "—"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+        <div className="section-block">
+          <div className="table-toolbar">
+            <div />
+            <SearchBar value={search} onChange={setSearch} placeholder="Search team…" />
+          </div>
 
-      {showAdd && <AddMemberModal onClose={() => setShowAdd(false)} />}
-    </div>
+          {members.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-state__icon"><CalendarHeart size={28} color="var(--text-muted)" /></div>
+              <div className="empty-state__title">No team members found</div>
+              <div className="empty-state__sub">
+                {search ? "Try a different search." : "Add team members to track birthdays and anniversaries."}
+              </div>
+              {!search && (
+                <button className="btn btn--primary" onClick={() => setShowAdd(true)}>+ Add Member</button>
+              )}
+            </div>
+          ) : (
+            <table className="hr-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Role</th>
+                  <th>Birthday</th>
+                  <th></th>
+                  <th>Work Anniversary</th>
+                  <th></th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {members.map((m) => (
+                  <tr key={m.id}>
+                    <td>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <div className="reminder-avatar">{getInitials(m.name)}</div>
+                        <div>
+                          <div style={{ fontWeight: 500 }}>{m.name}</div>
+                          <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{m.email}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{ color: "var(--text-secondary)" }}>{m.role || "—"}</td>
+                    <td>{formatDate(m.birthday)}</td>
+                    <td><DaysChip days={m.birthdayDays} /></td>
+                    <td>{formatDate(m.workAnniversary)}</td>
+                    <td><DaysChip days={m.anniversaryDays} /></td>
+                    <td>
+                      <DeleteButton onDelete={() => {
+                        dispatch({ type: "DELETE_TEAM_MEMBER", payload: m.id });
+                        toast(`${m.name} removed from team`);
+                      }} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {showAdd && <AddMemberModal onClose={() => setShowAdd(false)} />}
+      </div>
+    </>
   );
 }
