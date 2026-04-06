@@ -1,5 +1,6 @@
 import Head from "next/head";
 import Link from "next/link";
+import { useState, useEffect } from "react";
 import { useStore } from "@/lib/store";
 import { getCountry } from "@/lib/countries";
 
@@ -34,6 +35,47 @@ function groupCount(arr, key) {
     acc[val] = (acc[val] || 0) + 1;
     return acc;
   }, {});
+}
+
+function IndicatorsWidget() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/indicators")
+      .then((r) => r.json())
+      .then((d) => { setData(d); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const fmt = (n) =>
+    n != null
+      ? n.toLocaleString("es-CL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      : "—";
+
+  const dateStr = data?.date
+    ? new Date(data.date).toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric" })
+    : null;
+
+  return (
+    <div className="indicators-widget">
+      <div className="indicator-item">
+        <span className="indicator-label">UF</span>
+        <span className="indicator-value">{loading ? "…" : `$${fmt(data?.uf)}`}</span>
+      </div>
+      <div className="indicator-divider" />
+      <div className="indicator-item">
+        <span className="indicator-label">USD</span>
+        <span className="indicator-value">{loading ? "…" : `$${fmt(data?.usd)}`}</span>
+      </div>
+      <div className="indicator-divider" />
+      <div className="indicator-item">
+        <span className="indicator-label" style={{ fontSize: 11 }}>
+          {dateStr ? `Al ${dateStr}` : "Actualizando…"}
+        </span>
+      </div>
+    </div>
+  );
 }
 
 export default function Dashboard() {
@@ -80,9 +122,12 @@ export default function Dashboard() {
     <>
       <Head><title>Dashboard — Niuro HR</title></Head>
       <div>
-        <div className="page-header">
-          <h1 className="page-title">Dashboard</h1>
-          <p className="page-subtitle">Welcome back — here&apos;s what&apos;s happening.</p>
+        <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
+          <div>
+            <h1 className="page-title">Dashboard</h1>
+            <p className="page-subtitle">Welcome back — here&apos;s what&apos;s happening.</p>
+          </div>
+          <IndicatorsWidget />
         </div>
 
         {/* ── Summary cards ── */}
