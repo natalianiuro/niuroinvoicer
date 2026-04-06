@@ -6,6 +6,7 @@ import DeleteButton from "@/components/ui/DeleteButton";
 import { useStore, newId } from "@/lib/store";
 import { useToast } from "@/components/ui/Toast";
 import { CalendarHeart } from "lucide-react";
+import { COUNTRIES, getCountry } from "@/lib/countries";
 
 function getInitials(name) {
   return name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
@@ -37,7 +38,7 @@ function DaysChip({ days }) {
 function AddMemberModal({ onClose }) {
   const { dispatch } = useStore();
   const toast = useToast();
-  const [form, setForm] = useState({ name: "", role: "", email: "", birthday: "", workAnniversary: "" });
+  const [form, setForm] = useState({ name: "", role: "", email: "", country: "", birthday: "", workAnniversary: "" });
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
   const handleSubmit = (e) => {
@@ -61,9 +62,20 @@ function AddMemberModal({ onClose }) {
             <input className="form-input" value={form.role} onChange={(e) => set("role", e.target.value)} />
           </div>
         </div>
-        <div className="form-group">
-          <label className="form-label">Email</label>
-          <input className="form-input" type="email" value={form.email} onChange={(e) => set("email", e.target.value)} />
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Email</label>
+            <input className="form-input" type="email" value={form.email} onChange={(e) => set("email", e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Country</label>
+            <select className="form-select" value={form.country} onChange={(e) => set("country", e.target.value)}>
+              <option value="">— Select —</option>
+              {Object.entries(COUNTRIES).map(([code, { flag, name }]) => (
+                <option key={code} value={code}>{flag} {name}</option>
+              ))}
+            </select>
+          </div>
         </div>
         <div className="form-row">
           <div className="form-group">
@@ -156,7 +168,12 @@ export default function Team() {
                         </div>
                       </div>
                     </td>
-                    <td style={{ color: "var(--text-secondary)" }}>{m.role || "—"}</td>
+                    <td style={{ color: "var(--text-secondary)" }}>
+                      {m.country ? (
+                        <span title={getCountry(m.country).name}>{getCountry(m.country).flag} </span>
+                      ) : null}
+                      {m.role || "—"}
+                    </td>
                     <td>{formatDate(m.birthday)}</td>
                     <td><DaysChip days={m.birthdayDays} /></td>
                     <td>{formatDate(m.workAnniversary)}</td>

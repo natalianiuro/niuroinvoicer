@@ -6,6 +6,7 @@ import DeleteButton from "@/components/ui/DeleteButton";
 import { useStore, newId } from "@/lib/store";
 import { useToast } from "@/components/ui/Toast";
 import { Users } from "lucide-react";
+import { COUNTRIES, getCountry } from "@/lib/countries";
 
 function getInitials(name) {
   return name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
@@ -46,7 +47,7 @@ function AddContractorModal({ onClose }) {
   const { dispatch } = useStore();
   const toast = useToast();
   const [form, setForm] = useState({
-    name: "", role: "", email: "", startDate: "", contractEndDate: "", notes: "",
+    name: "", role: "", email: "", country: "", startDate: "", contractEndDate: "", notes: "",
   });
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -74,9 +75,20 @@ function AddContractorModal({ onClose }) {
             <input className="form-input" value={form.role} onChange={(e) => set("role", e.target.value)} />
           </div>
         </div>
-        <div className="form-group">
-          <label className="form-label">Email</label>
-          <input className="form-input" type="email" value={form.email} onChange={(e) => set("email", e.target.value)} />
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Email</label>
+            <input className="form-input" type="email" value={form.email} onChange={(e) => set("email", e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Country</label>
+            <select className="form-select" value={form.country} onChange={(e) => set("country", e.target.value)}>
+              <option value="">— Select —</option>
+              {Object.entries(COUNTRIES).map(([code, { flag, name }]) => (
+                <option key={code} value={code}>{flag} {name}</option>
+              ))}
+            </select>
+          </div>
         </div>
         <div className="form-row">
           <div className="form-group">
@@ -222,7 +234,12 @@ export default function Contractors() {
                         </div>
                       </div>
                     </td>
-                    <td style={{ color: "var(--text-secondary)" }}>{c.role || "—"}</td>
+                    <td style={{ color: "var(--text-secondary)" }}>
+                      {c.country ? (
+                        <span title={getCountry(c.country).name}>{getCountry(c.country).flag} </span>
+                      ) : null}
+                      {c.role || "—"}
+                    </td>
                     <td style={{ color: "var(--text-secondary)" }}>{c.startDate || "—"}</td>
                     <td style={{ color: "var(--text-secondary)" }}>{c.contractEndDate || "—"}</td>
                     <td><OnboardingBadge status={c.onboardingStatus} /></td>
