@@ -971,3 +971,84 @@ tr:hover .row-actions { opacity: 1; }
     grid-template-columns: repeat(3, 1fr);
   }
 }
+
+/* ─── Countdown cards (Obligaciones) ─── */
+.countdown-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px 24px;
+  transition: box-shadow 0.15s;
+}
+
+.countdown-card--warning {
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.countdown-card--urgent {
+  border-color: #ef4444;
+  background: #fef2f2;
+}
+
+.countdown-card__icon {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.countdown-card--warning .countdown-card__icon { color: #d97706; }
+.countdown-card--urgent  .countdown-card__icon { color: #dc2626; }
+
+.countdown-card__body {
+  flex: 1;
+}
+
+.countdown-card__name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.countdown-card__desc {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.countdown-card__date {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+.countdown-card__days {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.countdown-number {
+  font-size: 36px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--accent);
+  letter-spacing: -1px;
+}
+
+.countdown-card--warning .countdown-number { color: #d97706; }
+.countdown-card--urgent  .countdown-number { color: #dc2626; }
+
+.countdown-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+@media (max-width: 768px) {
+  .countdown-grid { grid-template-columns: 1fr !important; }
+}

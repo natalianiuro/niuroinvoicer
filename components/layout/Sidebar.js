@@ -8,6 +8,8 @@ import {
   FileText,
   CalendarHeart,
   Monitor,
+  AlertCircle,
+  Landmark,
   Menu,
   X,
 } from "lucide-react";
@@ -19,16 +21,15 @@ const navItems = [
   { href: "/invoices", label: "Invoices", icon: FileText },
   { href: "/team", label: "Team", icon: CalendarHeart },
   { href: "/equipment", label: "Equipment", icon: Monitor },
+  { href: "/obligaciones", label: "Obligaciones", icon: AlertCircle },
+  { href: "/pagos", label: "Pagos", icon: Landmark },
 ];
 
 export default function Sidebar() {
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // Close sidebar on route change
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [router.pathname]);
+  useEffect(() => { setMobileOpen(false); }, [router.pathname]);
 
   const nav = (
     <>
@@ -39,14 +40,9 @@ export default function Sidebar() {
 
       <nav className="sidebar-nav">
         {navItems.map(({ href, label, icon: Icon }) => {
-          const isActive =
-            href === "/" ? router.pathname === "/" : router.pathname.startsWith(href);
+          const isActive = href === "/" ? router.pathname === "/" : router.pathname.startsWith(href);
           return (
-            <Link
-              key={href}
-              href={href}
-              className={`sidebar-item${isActive ? " sidebar-item--active" : ""}`}
-            >
+            <Link key={href} href={href} className={`sidebar-item${isActive ? " sidebar-item--active" : ""}`}>
               <Icon size={16} strokeWidth={1.8} />
               <span>{label}</span>
             </Link>
@@ -65,10 +61,8 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Desktop sidebar */}
       <aside className="sidebar">{nav}</aside>
 
-      {/* Mobile header */}
       <div className="mobile-header">
         <div className="mobile-header__logo">
           <img src="/logo.png" alt="Niuro" />
@@ -79,19 +73,11 @@ export default function Sidebar() {
         </button>
       </div>
 
-      {/* Mobile sidebar drawer */}
       {mobileOpen && (
         <>
           <div className="sidebar-overlay" onClick={() => setMobileOpen(false)} />
           <aside className="sidebar sidebar--open">
-            <button
-              onClick={() => setMobileOpen(false)}
-              style={{
-                position: "absolute", top: 14, right: 12,
-                background: "none", border: "none", cursor: "pointer",
-                color: "var(--text-muted)", display: "flex",
-              }}
-            >
+            <button onClick={() => setMobileOpen(false)} style={{ position: "absolute", top: 14, right: 12, background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", display: "flex" }}>
               <X size={18} />
             </button>
             {nav}
