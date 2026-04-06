@@ -90,6 +90,33 @@ function ClientLogo({ client }) {
   );
 }
 
+// ─── Compliance countdown card ────────────────────────────────
+function ComplianceCountdownCard({ label, day }) {
+  const today = new Date();
+  const current = today.getDate();
+  let target = new Date(today.getFullYear(), today.getMonth(), day);
+  if (current >= day) {
+    target = new Date(today.getFullYear(), today.getMonth() + 1, day);
+  }
+  const diff = Math.ceil((target - today) / (1000 * 60 * 60 * 24));
+  const urgent = diff <= 3;
+  const warning = diff <= 7 && diff > 3;
+  const color = urgent ? "var(--red)" : warning ? "var(--yellow)" : "var(--green)";
+  const bgColor = urgent ? "var(--red-bg)" : warning ? "var(--yellow-bg)" : "var(--green-bg)";
+  const monthName = target.toLocaleDateString("es-CL", { month: "short", day: "numeric" });
+  return (
+    <div className="summary-card" style={{ borderTop: `3px solid ${color}` }}>
+      <div className="summary-card__label">{label}</div>
+      <div className="summary-card__value" style={{ color, fontSize: 28 }}>{diff}</div>
+      <div className="summary-card__sub">
+        <span style={{ background: bgColor, color, padding: "2px 6px", borderRadius: 4, fontSize: 11, fontWeight: 600 }}>
+          días · {monthName}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────
 const INVOICE_LABELS = {
   to_issue: ["badge--yellow", "To Issue"],
@@ -184,8 +211,8 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* ── Alerts row ── */}
-        <div className="card-grid" style={{ gridTemplateColumns: "repeat(2, 1fr)", maxWidth: 520, marginBottom: 24 }}>
+        {/* ── Alerts + Compliance row ── */}
+        <div className="card-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)", marginBottom: 24 }}>
           <div className="summary-card">
             <div className="summary-card__label">Pending Invoices</div>
             <div className="summary-card__value">{pendingInvoices}</div>
@@ -196,6 +223,8 @@ export default function Dashboard() {
             <div className="summary-card__value">{openReimbursements}</div>
             <div className="summary-card__sub">pending approval</div>
           </div>
+          <ComplianceCountdownCard label="Previred" day={13} />
+          <ComplianceCountdownCard label="F29" day={20} />
         </div>
 
         {/* ── Clients ── */}
