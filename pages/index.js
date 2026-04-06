@@ -90,28 +90,27 @@ function ClientLogo({ client }) {
   );
 }
 
-// ─── Compliance countdown card ────────────────────────────────
-function ComplianceCountdownCard({ label, day }) {
+// ─── Compliance reminder row ──────────────────────────────────
+function ComplianceReminderRow({ label, day, description }) {
   const today = new Date();
-  const current = today.getDate();
   let target = new Date(today.getFullYear(), today.getMonth(), day);
-  if (current >= day) {
-    target = new Date(today.getFullYear(), today.getMonth() + 1, day);
-  }
+  if (today.getDate() >= day) target = new Date(today.getFullYear(), today.getMonth() + 1, day);
   const diff = Math.ceil((target - today) / (1000 * 60 * 60 * 24));
-  const urgent = diff <= 3;
-  const warning = diff <= 7 && diff > 3;
-  const color = urgent ? "var(--red)" : warning ? "var(--yellow)" : "var(--green)";
-  const bgColor = urgent ? "var(--red-bg)" : warning ? "var(--yellow-bg)" : "var(--green-bg)";
-  const monthName = target.toLocaleDateString("es-CL", { month: "short", day: "numeric" });
+  const urgent = diff <= 3, warning = diff <= 7 && !urgent;
+  const badgeClass = urgent ? "badge--red" : warning ? "badge--yellow" : "badge--green";
+  const dateStr = target.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   return (
-    <div className="summary-card" style={{ borderTop: `3px solid ${color}` }}>
-      <div className="summary-card__label">{label}</div>
-      <div className="summary-card__value" style={{ color, fontSize: 28 }}>{diff}</div>
-      <div className="summary-card__sub">
-        <span style={{ background: bgColor, color, padding: "2px 6px", borderRadius: 4, fontSize: 11, fontWeight: 600 }}>
-          días · {monthName}
-        </span>
+    <div className="reminder-item">
+      <div className="reminder-avatar" style={{ background: urgent ? "var(--red-bg)" : warning ? "var(--yellow-bg)" : "var(--green-bg)", color: urgent ? "var(--red)" : warning ? "var(--yellow)" : "var(--green)", fontWeight: 700, fontSize: 13 }}>
+        {diff}d
+      </div>
+      <div>
+        <div className="reminder-name">{label}</div>
+        <div className="reminder-detail">{description}</div>
+      </div>
+      <div className="reminder-date">
+        <span className={`badge ${badgeClass}`}>{diff === 0 ? "Today!" : diff === 1 ? "Tomorrow" : `in ${diff} days`}</span>
+        {" · "}{dateStr}
       </div>
     </div>
   );
@@ -211,8 +210,8 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* ── Alerts + Compliance row ── */}
-        <div className="card-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)", marginBottom: 24 }}>
+        {/* ── Alerts row ── */}
+        <div className="card-grid" style={{ gridTemplateColumns: "repeat(2, 1fr)", maxWidth: 480, marginBottom: 24 }}>
           <div className="summary-card">
             <div className="summary-card__label">Pending Invoices</div>
             <div className="summary-card__value">{pendingInvoices}</div>
@@ -223,8 +222,6 @@ export default function Dashboard() {
             <div className="summary-card__value">{openReimbursements}</div>
             <div className="summary-card__sub">pending approval</div>
           </div>
-          <ComplianceCountdownCard label="Previred" day={13} />
-          <ComplianceCountdownCard label="F29" day={20} />
         </div>
 
         {/* ── Clients ── */}
@@ -307,9 +304,9 @@ export default function Dashboard() {
             <span className="section-block__title">Upcoming Reminders</span>
             <Link href="/team" style={{ fontSize: 12, color: "var(--text-muted)" }}>View all</Link>
           </div>
-          {upcomingEvents.length === 0 ? (
-            <div className="empty-state">No events in the next 30 days.</div>
-          ) : upcomingEvents.map((event, i) => (
+          <ComplianceReminderRow label="Previred" day={13} description="Social security contributions" />
+          <ComplianceReminderRow label="F29" day={20} description="VAT declaration & payment" />
+          {upcomingEvents.map((event, i) => (
             <div className="reminder-item" key={i}>
               <div className="reminder-avatar">{getInitials(event.name)}</div>
               <div>
@@ -322,6 +319,9 @@ export default function Dashboard() {
               </div>
             </div>
           ))}
+          {upcomingEvents.length === 0 && (
+            <div style={{ padding: "8px 0", fontSize: 13, color: "var(--text-muted)" }}>No team events in the next 30 days.</div>
+          )}
         </div>
 
         {/* ── Recent invoices ── */}
