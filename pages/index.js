@@ -3,11 +3,12 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useStore } from "@/lib/store";
 import { getCountry } from "@/lib/countries";
+import { clients as CLIENT_LIST } from "@/lib/data/mock";
 
+// ─── Helpers ─────────────────────────────────────────────────
 function getInitials(name) {
   return name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 }
-
 function getDaysUntil(dateStr) {
   const today = new Date();
   const date = new Date(dateStr);
@@ -15,20 +16,9 @@ function getDaysUntil(dateStr) {
   if (date < today) date.setFullYear(today.getFullYear() + 1);
   return Math.ceil((date - today) / (1000 * 60 * 60 * 24));
 }
-
 function formatEventDate(dateStr) {
-  const date = new Date(dateStr);
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
-
-const INVOICE_LABELS = {
-  to_issue: ["badge--yellow", "To Issue"],
-  sent: ["badge--blue", "Sent"],
-  pending_payment: ["badge--yellow", "Pending Payment"],
-  paid: ["badge--green", "Paid"],
-};
-
-// Group items by a key and count
 function groupCount(arr, key) {
   return arr.reduce((acc, item) => {
     const val = item[key] || "Unknown";
@@ -37,6 +27,7 @@ function groupCount(arr, key) {
   }, {});
 }
 
+// ─── Indicators widget ────────────────────────────────────────
 function IndicatorsWidget() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -49,9 +40,7 @@ function IndicatorsWidget() {
   }, []);
 
   const fmt = (n) =>
-    n != null
-      ? n.toLocaleString("es-CL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-      : "—";
+    n != null ? n.toLocaleString("es-CL", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—";
 
   const dateStr = data?.date
     ? new Date(data.date).toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric" })
@@ -78,19 +67,42 @@ function IndicatorsWidget() {
   );
 }
 
+// ─── Client logo with clearbit fallback ──────────────────────
+function ClientLogo({ client }) {
+  const [failed, setFailed] = useState(false);
+  const initials = client.name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+
+  if (failed || !client.domain) {
+    return (
+      <div className="client-logo-fallback">
+        {initials}
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={`https://logo.clearbit.com/${client.domain}`}
+      alt={client.name}
+      className="client-logo-img"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────
+const INVOICE_LABELS = {
+  to_issue: ["badge--yellow", "To Issue"],
+  sent: ["badge--blue", "Sent"],
+  pending_payment: ["badge--yellow", "Pending Payment"],
+  paid: ["badge--green", "Paid"],
+};
+
 export default function Dashboard() {
   const { state } = useStore();
   const { contractors, reimbursements, invoices, team } = state;
 
-  // ── Summary stats ─────────────────────────────────────────
-  const pendingInvoices = invoices.filter((i) => i.status !== "paid").length;
-  const openReimbursements = reimbursements.filter((r) => r.status === "pending").length;
-  const inProgressContractors = contractors.filter(
-    (c) => c.onboardingStatus !== "complete"
-  ).length;
-
-  // ── Headcount data ────────────────────────────────────────
-  // Merge contractors + team, deduplicate by email
+  // ── Deduplicated full list (contractors + team, by email) ──
   const allPeople = Object.values(
     [...contractors, ...team].reduce((acc, p) => {
       const key = p.email || p.name;
@@ -99,13 +111,29 @@ export default function Dashboard() {
     }, {})
   );
 
-  const byCountry = groupCount(allPeople, "country");
-  const byRole = groupCount(allPeople, "role");
+  // ── Headcount breakdown ────────────────────────────────────
+  const totalPeople      = allPeople.length;
+  const totalContractors = allPeople.filter((p) => p.personType === "contractor").length;
+  const totalEmployees   = allPeople.filter((p) => p.personType === "employee").length;
+  const totalInternal    = allPeople.filter((p) => p.personType === "internal").length;
 
+  // ── Country / role breakdown ───────────────────────────────
+  const byCountry  = groupCount(allPeople, "country");
+  const byRole     = groupCount(allPeople, "role");
   const countriesSorted = Object.entries(byCountry).sort((a, b) => b[1] - a[1]);
-  const rolesSorted = Object.entries(byRole).sort((a, b) => b[1] - a[1]);
+  const rolesSorted     = Object.entries(byRole).sort((a, b) => b[1] - a[1]);
+
+  // ── Per-client engineer count ──────────────────────────────
+  const engineersByClient = contractors.reduce((acc, c) => {
+    if (c.client) acc[c.client] = (acc[c.client] || 0) + 1;
+    return acc;
+  }, {});
 
   // ── Reminders ─────────────────────────────────────────────
+  const pendingInvoices      = invoices.filter((i) => i.status !== "paid").length;
+  const openReimbursements   = reimbursements.filter((r) => r.status === "pending").length;
+  const inProgressOnboarding = contractors.filter((c) => c.onboardingStatus !== "complete").length;
+
   const upcomingEvents = team
     .flatMap((m) => [
       { name: m.name, type: "Birthday", date: m.birthday },
@@ -122,6 +150,8 @@ export default function Dashboard() {
     <>
       <Head><title>Dashboard — Niuro HR</title></Head>
       <div>
+
+        {/* ── Header + indicators ── */}
         <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
           <div>
             <h1 className="page-title">Dashboard</h1>
@@ -130,18 +160,32 @@ export default function Dashboard() {
           <IndicatorsWidget />
         </div>
 
-        {/* ── Summary cards ── */}
-        <div className="card-grid">
+        {/* ── Headcount summary ── */}
+        <div className="card-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
           <div className="summary-card">
-            <div className="summary-card__label">Total Contractors</div>
-            <div className="summary-card__value">{contractors.length}</div>
-            <div className="summary-card__sub">{inProgressContractors} onboarding</div>
+            <div className="summary-card__label">Team</div>
+            <div className="summary-card__value">{totalPeople}</div>
+            <div className="summary-card__sub">total people</div>
           </div>
           <div className="summary-card">
-            <div className="summary-card__label">Team Members</div>
-            <div className="summary-card__value">{team.length}</div>
-            <div className="summary-card__sub">across {countriesSorted.length} {countriesSorted.length === 1 ? "country" : "countries"}</div>
+            <div className="summary-card__label">Contractors</div>
+            <div className="summary-card__value">{totalContractors}</div>
+            <div className="summary-card__sub">{inProgressOnboarding} onboarding</div>
           </div>
+          <div className="summary-card">
+            <div className="summary-card__label">Employees</div>
+            <div className="summary-card__value">{totalEmployees}</div>
+            <div className="summary-card__sub">working with clients</div>
+          </div>
+          <div className="summary-card">
+            <div className="summary-card__label">Internal</div>
+            <div className="summary-card__value">{totalInternal}</div>
+            <div className="summary-card__sub">at Niuro directly</div>
+          </div>
+        </div>
+
+        {/* ── Alerts row ── */}
+        <div className="card-grid" style={{ gridTemplateColumns: "repeat(2, 1fr)", maxWidth: 520, marginBottom: 24 }}>
           <div className="summary-card">
             <div className="summary-card__label">Pending Invoices</div>
             <div className="summary-card__value">{pendingInvoices}</div>
@@ -154,20 +198,45 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* ── Headcount overview ── */}
+        {/* ── Clients ── */}
+        <div className="section-block" style={{ marginBottom: 24 }}>
+          <div className="section-block__header">
+            <span className="section-block__title">Clients</span>
+            <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{CLIENT_LIST.length} clients</span>
+          </div>
+          <div className="clients-grid">
+            {CLIENT_LIST.map((client) => {
+              const count = engineersByClient[client.id] || 0;
+              return (
+                <div key={client.id} className="client-card">
+                  <div className="client-card__logo">
+                    <ClientLogo client={client} />
+                  </div>
+                  <div className="client-card__name">{client.name}</div>
+                  <div className="client-card__count">
+                    {count > 0 ? (
+                      <span className="badge badge--blue">{count} {count === 1 ? "engineer" : "engineers"}</span>
+                    ) : (
+                      <span style={{ fontSize: 11, color: "var(--text-muted)" }}>no engineers</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── Country + Role breakdown ── */}
         <div className="headcount-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
-          {/* By country */}
           <div className="section-block">
             <div className="section-block__header">
               <span className="section-block__title">By Country</span>
-              <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{allPeople.length} people total</span>
+              <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{totalPeople} people</span>
             </div>
             <div style={{ padding: "8px 0" }}>
-              {countriesSorted.length === 0 ? (
-                <div className="empty-state" style={{ padding: "20px" }}>No data</div>
-              ) : countriesSorted.map(([code, count]) => {
+              {countriesSorted.map(([code, count]) => {
                 const { flag, name } = getCountry(code);
-                const pct = Math.round((count / allPeople.length) * 100);
+                const pct = Math.round((count / totalPeople) * 100);
                 return (
                   <div key={code} className="headcount-row">
                     <span className="headcount-flag">{flag}</span>
@@ -182,16 +251,13 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* By role */}
           <div className="section-block">
             <div className="section-block__header">
               <span className="section-block__title">By Role</span>
             </div>
             <div style={{ padding: "8px 0" }}>
-              {rolesSorted.length === 0 ? (
-                <div className="empty-state" style={{ padding: "20px" }}>No data</div>
-              ) : rolesSorted.map(([role, count]) => {
-                const pct = Math.round((count / allPeople.length) * 100);
+              {rolesSorted.map(([role, count]) => {
+                const pct = Math.round((count / totalPeople) * 100);
                 return (
                   <div key={role} className="headcount-row">
                     <span className="headcount-label" style={{ flex: 1 }}>{role || "—"}</span>
@@ -214,21 +280,19 @@ export default function Dashboard() {
           </div>
           {upcomingEvents.length === 0 ? (
             <div className="empty-state">No events in the next 30 days.</div>
-          ) : (
-            upcomingEvents.map((event, i) => (
-              <div className="reminder-item" key={i}>
-                <div className="reminder-avatar">{getInitials(event.name)}</div>
-                <div>
-                  <div className="reminder-name">{event.name}</div>
-                  <div className="reminder-detail">{event.type}</div>
-                </div>
-                <div className="reminder-date">
-                  {event.daysUntil === 0 ? "Today!" : event.daysUntil === 1 ? "Tomorrow" : `in ${event.daysUntil} days`}
-                  {" · "}{formatEventDate(event.date)}
-                </div>
+          ) : upcomingEvents.map((event, i) => (
+            <div className="reminder-item" key={i}>
+              <div className="reminder-avatar">{getInitials(event.name)}</div>
+              <div>
+                <div className="reminder-name">{event.name}</div>
+                <div className="reminder-detail">{event.type}</div>
               </div>
-            ))
-          )}
+              <div className="reminder-date">
+                {event.daysUntil === 0 ? "Today!" : event.daysUntil === 1 ? "Tomorrow" : `in ${event.daysUntil} days`}
+                {" · "}{formatEventDate(event.date)}
+              </div>
+            </div>
+          ))}
         </div>
 
         {/* ── Recent invoices ── */}
@@ -240,11 +304,7 @@ export default function Dashboard() {
           <table className="hr-table">
             <thead>
               <tr>
-                <th>Invoice #</th>
-                <th>Client</th>
-                <th>Amount</th>
-                <th>Due</th>
-                <th>Status</th>
+                <th>Invoice #</th><th>Client</th><th>Amount</th><th>Due</th><th>Status</th>
               </tr>
             </thead>
             <tbody>
@@ -252,9 +312,7 @@ export default function Dashboard() {
                 const [cls, label] = INVOICE_LABELS[inv.status] || ["badge--gray", inv.status];
                 return (
                   <tr key={inv.id}>
-                    <td style={{ color: "var(--text-muted)", fontFamily: "monospace" }}>
-                      #{inv.invoiceNumber}
-                    </td>
+                    <td style={{ color: "var(--text-muted)", fontFamily: "monospace" }}>#{inv.invoiceNumber}</td>
                     <td>{inv.vendorName}</td>
                     <td>${inv.amount.toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
                     <td style={{ color: "var(--text-secondary)" }}>{inv.dueDate || "—"}</td>
@@ -265,6 +323,7 @@ export default function Dashboard() {
             </tbody>
           </table>
         </div>
+
       </div>
     </>
   );

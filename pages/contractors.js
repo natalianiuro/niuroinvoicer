@@ -7,6 +7,13 @@ import { useStore, newId } from "@/lib/store";
 import { useToast } from "@/components/ui/Toast";
 import { Users } from "lucide-react";
 import { COUNTRIES, getCountry } from "@/lib/countries";
+import { clients as CLIENT_LIST } from "@/lib/data/mock";
+
+const PERSON_TYPES = [
+  { value: "contractor", label: "Contractor" },
+  { value: "employee",   label: "Employee" },
+  { value: "internal",   label: "Internal" },
+];
 
 function getInitials(name) {
   return name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
@@ -47,7 +54,9 @@ function AddContractorModal({ onClose }) {
   const { dispatch } = useStore();
   const toast = useToast();
   const [form, setForm] = useState({
-    name: "", role: "", email: "", country: "", startDate: "", contractEndDate: "", notes: "",
+    name: "", role: "", email: "", country: "",
+    personType: "contractor", client: "",
+    startDate: "", contractEndDate: "", notes: "",
   });
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -87,6 +96,21 @@ function AddContractorModal({ onClose }) {
               {Object.entries(COUNTRIES).map(([code, { flag, name }]) => (
                 <option key={code} value={code}>{flag} {name}</option>
               ))}
+            </select>
+          </div>
+        </div>
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Type</label>
+            <select className="form-select" value={form.personType} onChange={(e) => set("personType", e.target.value)}>
+              {PERSON_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Client</label>
+            <select className="form-select" value={form.client} onChange={(e) => set("client", e.target.value)}>
+              <option value="">— None / Internal —</option>
+              {CLIENT_LIST.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
         </div>
@@ -215,8 +239,8 @@ export default function Contractors() {
                 <tr>
                   <th>Name</th>
                   <th>Role</th>
-                  <th>Start Date</th>
-                  <th>Contract End</th>
+                  <th>Type</th>
+                  <th>Client</th>
                   <th>Onboarding</th>
                   <th>Progress</th>
                   <th></th>
@@ -240,8 +264,14 @@ export default function Contractors() {
                       ) : null}
                       {c.role || "—"}
                     </td>
-                    <td style={{ color: "var(--text-secondary)" }}>{c.startDate || "—"}</td>
-                    <td style={{ color: "var(--text-secondary)" }}>{c.contractEndDate || "—"}</td>
+                    <td>
+                      {c.personType === "contractor" && <span className="badge badge--gray">Contractor</span>}
+                      {c.personType === "employee"   && <span className="badge badge--blue">Employee</span>}
+                      {c.personType === "internal"   && <span className="badge badge--green">Internal</span>}
+                    </td>
+                    <td style={{ color: "var(--text-secondary)", fontSize: 12 }}>
+                      {c.client ? (CLIENT_LIST.find((cl) => cl.id === c.client)?.name || c.client) : "—"}
+                    </td>
                     <td><OnboardingBadge status={c.onboardingStatus} /></td>
                     <td><ProgressBar steps={c.onboardingSteps} /></td>
                     <td><DeleteButton onDelete={() => handleDelete(c)} /></td>
