@@ -8,10 +8,10 @@ import {
 
 const navItems = [
   { href: "/",           label: "Dashboard",  icon: LayoutDashboard },
-  { href: "/invoices",   label: "Invoices",   icon: FileText },
-  { href: "/payments",   label: "Payments",   icon: CreditCard },
-  { href: "/people",     label: "People",     icon: UserCheck },
   { href: "/team",       label: "Team",       icon: CalendarHeart },
+  { href: "/people",     label: "People",     icon: UserCheck },
+  { href: "/payments",   label: "Payments",   icon: CreditCard },
+  { href: "/invoices",   label: "Invoices",   icon: FileText },
   { href: "/equipment",  label: "Equipment",  icon: Monitor },
 ];
 
