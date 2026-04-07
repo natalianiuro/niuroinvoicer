@@ -2,13 +2,12 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { useState, useEffect } from "react";
 import {
-  LayoutDashboard, Users, FileText, CalendarHeart,
+  LayoutDashboard, FileText, CalendarHeart,
   Monitor, CreditCard, UserCheck, Menu, X,
 } from "lucide-react";
 
 const navItems = [
   { href: "/",           label: "Dashboard",  icon: LayoutDashboard },
-  { href: "/contractors",label: "Contractors", icon: Users },
   { href: "/invoices",   label: "Invoices",   icon: FileText },
   { href: "/payments",   label: "Payments",   icon: CreditCard },
   { href: "/people",     label: "People",     icon: UserCheck },
