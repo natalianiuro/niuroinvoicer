@@ -48,13 +48,14 @@ function clientName(id) {
 // TAB 1 — ONBOARDING
 // ══════════════════════════════════════════════════════════════
 const CHECKLIST_ITEMS = [
-  { key: "contractSigned",   label: "Contract signing" },
-  { key: "niuroCredentials", label: "Niuro credentials" },
-  { key: "computer",         label: "Computer" },
-  { key: "niuroOnboarding",  label: "Niuro onboarding" },
-  { key: "clientCredentials",label: "Client credentials" },
+  { key: "contractSigned",   label: "Contract Signed" },
+  { key: "ndaSigned",        label: "NDA Signed" },
+  { key: "niuroCredentials", label: "Niuro Credentials" },
+  { key: "niuroOnboarding",  label: "Onboarding HR" },
+  { key: "computer",         label: "Laptop" },
+  { key: "clientCredentials",label: "Client Credentials" },
 ];
-const EMPTY_CHECKLIST = { contractSigned: false, niuroCredentials: false, computer: false, niuroOnboarding: false, clientCredentials: false };
+const EMPTY_CHECKLIST = { contractSigned: false, ndaSigned: false, niuroCredentials: false, niuroOnboarding: false, computer: false, clientCredentials: false };
 
 function OnboardingDetailModal({ record, onClose }) {
   const { dispatch } = useStore();
@@ -74,7 +75,7 @@ function OnboardingDetailModal({ record, onClose }) {
       </div>
       {record.notes && <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--border-light)" }}>{record.notes}</p>}
       <div style={{ marginTop: 16, fontSize: 13, color: "var(--text-secondary)" }}>
-        Completed: <strong>{done}/5</strong>
+        Completed: <strong>{done}/{CHECKLIST_ITEMS.length}</strong>
       </div>
       <div className="form-actions"><button className="btn btn--ghost" onClick={onClose}>Close</button></div>
     </Modal>
@@ -161,15 +162,15 @@ function OnboardingTab() {
         ) : (
           <table className="hr-table">
             <thead><tr>
-              <th>Person</th>
+              <th>Contractor</th>
               <th>Client</th>
-              {CHECKLIST_ITEMS.map(i => <th key={i.key} title={i.label} style={{ fontSize: 10, maxWidth: 70, textAlign: "center" }}>{i.label.split(" ")[0]}</th>)}
+              {CHECKLIST_ITEMS.map(i => <th key={i.key} style={{ fontSize: 10, maxWidth: 80, textAlign: "center" }}>{i.label}</th>)}
               <th>Progress</th><th></th>
             </tr></thead>
             <tbody>
               {filtered.map(o => {
                 const done = Object.values(o.checklist).filter(Boolean).length;
-                const pct = Math.round(done / 5 * 100);
+                const pct = Math.round(done / CHECKLIST_ITEMS.length * 100);
                 return (
                   <tr key={o.id} style={{ cursor: "pointer" }} onClick={() => setSelected(o)}>
                     <td>
