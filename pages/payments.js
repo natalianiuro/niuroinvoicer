@@ -50,6 +50,7 @@ const COL = {
 };
 const SANTANDER_WIDTHS = [{ wch:22 },{ wch:16 },{ wch:22 },{ wch:16 },{ wch:16 },{ wch:20 },{ wch:30 },{ wch:18 },{ wch:36 },{ wch:28 },{ wch:28 },{ wch:36 },{ wch:36 }];
 const padAccount = (n) => String(n || "").replace(/\D/g, "").padStart(22, "0");
+const stripRut   = (r) => String(r || "").replace(/\D/g, "");
 
 async function exportBankPayments(payments, groupLabel, cuentaOrigen) {
   const suffix = groupLabel || new Date().toISOString().slice(0,10);
@@ -60,7 +61,7 @@ async function exportBankPayments(payments, groupLabel, cuentaOrigen) {
       [COL.cuentaDestino]: padAccount(p.accountNumber),
       [COL.monedaDestino]: "CLP",
       [COL.codigoBanco]:   p.bankCode || "",
-      [COL.rut]:           p.rut || "",
+      [COL.rut]:           stripRut(p.rut),
       [COL.nombre]:        p.beneficiaryName || "",
       [COL.monto]:         p.amount,
       [COL.glosa]:         p.glosa || "",
@@ -84,7 +85,7 @@ async function exportReimbursements(rows, groupLabel, cuentaOrigen) {
       [COL.cuentaDestino]: padAccount(r.accountNumber),
       [COL.monedaDestino]: "CLP",
       [COL.codigoBanco]:   r.bankCode || "",
-      [COL.rut]:           r.rut || "",
+      [COL.rut]:           stripRut(r.rut),
       [COL.nombre]:        r.personName || "",
       [COL.monto]:         r.amount,
       [COL.glosa]:         r.detail || r.description || "",
