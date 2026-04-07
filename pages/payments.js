@@ -532,7 +532,7 @@ export default function Payments() {
           </div>
         </div>
         <div className="filter-tabs" style={{ marginBottom: 24, borderBottom: "1px solid var(--border)", paddingBottom: 4 }}>
-          {[["bank", "Facturas locales"], ["compliance", "Previred & F29"], ["reimbursements", "Reimbursements"]].map(([v, l]) => (
+          {[["bank", "Local Invoices"], ["compliance", "Previred & F29"], ["reimbursements", "Reimbursements"]].map(([v, l]) => (
             <button key={v} className={`filter-tab${tab === v ? " filter-tab--active" : ""}`} onClick={() => setTab(v)}>{l}</button>
           ))}
         </div>
