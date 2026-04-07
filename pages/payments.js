@@ -32,21 +32,69 @@ const COMMON_BENEFICIARIES = [
   { name: "Contabilidad", email: "contador@estudio.cl",accountNumber: "55667788", bankCode: "001" },
 ];
 
-async function exportBankPayments(payments, groupLabel) {
+// Exact Santander column headers
+const COL = {
+  cuentaOrigen:  "Cuenta origen(obligatorio)",
+  monedaOrigen:  "Moneda origen(obligatorio)",
+  cuentaDestino: "Cuenta destino(obligatorio)",
+  monedaDestino: "Moneda destino(obligatorio)",
+  codigoBanco:   "Código banco destino(obligatorio solo si banco destino no es Santander)",
+  rut:           "RUT beneficiario(obligatorio solo si banco destino no es Santander)",
+  nombre:        "Nombre beneficiario(obligatorio solo si banco destino no es Santander)",
+  monto:         "Monto transferencia(obligatorio)",
+  glosa:         "Glosa personalizada transferencia(opcional)",
+  correo:        "Correo beneficiario(opcional)",
+  mensaje:       "Mensaje correo beneficiario(opcional)",
+  glosaOrigen:   "Glosa cartola origen(opcional)",
+  glosaDestino:  "Glosa cartola destino(opcional, solo aplica si la cuenta destino es Santander)",
+};
+const SANTANDER_WIDTHS = [{ wch:22 },{ wch:16 },{ wch:22 },{ wch:16 },{ wch:16 },{ wch:20 },{ wch:30 },{ wch:18 },{ wch:36 },{ wch:28 },{ wch:28 },{ wch:36 },{ wch:36 }];
+
+async function exportBankPayments(payments, groupLabel, cuentaOrigen) {
   const suffix = groupLabel || new Date().toISOString().slice(0,10);
   await toExcel(
     payments.map((p) => ({
-      "Beneficiary":    p.beneficiaryName,
-      "Amount":         p.amount,
-      "Account #":      p.accountNumber,
-      "Bank Code":      p.bankCode,
-      "Email":          p.email,
-      "Glosa":          p.glosa,
-      "Date":           p.date,
+      [COL.cuentaOrigen]:  cuentaOrigen || "",
+      [COL.monedaOrigen]:  "CLP",
+      [COL.cuentaDestino]: p.accountNumber || "",
+      [COL.monedaDestino]: "CLP",
+      [COL.codigoBanco]:   p.bankCode || "",
+      [COL.rut]:           p.rut || "",
+      [COL.nombre]:        p.beneficiaryName || "",
+      [COL.monto]:         p.amount,
+      [COL.glosa]:         p.glosa || "",
+      [COL.correo]:        p.email || "",
+      [COL.mensaje]:       "",
+      [COL.glosaOrigen]:   p.glosa || "",
+      [COL.glosaDestino]:  "",
     })),
     "Facturas",
     `facturas_niuro_${suffix}.xlsx`,
-    [{ wch:22 },{ wch:14 },{ wch:18 },{ wch:14 },{ wch:26 },{ wch:36 },{ wch:14 }]
+    SANTANDER_WIDTHS
+  );
+}
+
+async function exportReimbursements(rows, groupLabel, cuentaOrigen) {
+  const suffix = groupLabel || new Date().toISOString().slice(0,10);
+  await toExcel(
+    rows.map((r) => ({
+      [COL.cuentaOrigen]:  cuentaOrigen || "",
+      [COL.monedaOrigen]:  "CLP",
+      [COL.cuentaDestino]: r.accountNumber || "",
+      [COL.monedaDestino]: "CLP",
+      [COL.codigoBanco]:   r.bankCode || "",
+      [COL.rut]:           r.rut || "",
+      [COL.nombre]:        r.personName || "",
+      [COL.monto]:         r.amount,
+      [COL.glosa]:         r.detail || r.description || "",
+      [COL.correo]:        r.email || "",
+      [COL.mensaje]:       "",
+      [COL.glosaOrigen]:   r.detail || r.description || "",
+      [COL.glosaDestino]:  "",
+    })),
+    "Reimbursements",
+    `reimbursements_niuro_${suffix}.xlsx`,
+    SANTANDER_WIDTHS
   );
 }
 
@@ -55,12 +103,13 @@ function BankPaymentForm({ initial, onSave, onCancel }) {
   const [preset, setPreset] = useState(COMMON_BENEFICIARIES[0].name);
   const [form, setForm] = useState({
     beneficiaryName: initial?.beneficiaryName || "",
-    amount: initial?.amount || "",
-    accountNumber: initial?.accountNumber || "",
-    bankCode: initial?.bankCode || "",
-    email: initial?.email || "",
-    glosa: initial?.glosa || "",
-    date: initial?.date || new Date().toISOString().slice(0,10),
+    rut:             initial?.rut             || "",
+    amount:          initial?.amount          || "",
+    accountNumber:   initial?.accountNumber   || "",
+    bankCode:        initial?.bankCode        || "",
+    email:           initial?.email           || "",
+    glosa:           initial?.glosa           || "",
+    date:            initial?.date            || new Date().toISOString().slice(0,10),
   });
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -109,12 +158,62 @@ function BankPaymentForm({ initial, onSave, onCancel }) {
           <div className="form-group"><label className="form-label">Bank Code</label><input className="form-input" value={form.bankCode} onChange={e => set("bankCode", e.target.value)} /></div>
         </div>
       )}
+      <div className="form-group"><label className="form-label">RUT beneficiary</label><input className="form-input" value={form.rut} onChange={e => set("rut", e.target.value)} placeholder="12.345.678-9" /></div>
       <div className="form-group"><label className="form-label">Glosa</label><input className="form-input" value={form.glosa} onChange={e => set("glosa", e.target.value)} /></div>
       <div className="form-actions">
         <button type="button" className="btn btn--ghost" onClick={onCancel}>Cancel</button>
         <button type="submit" className="btn btn--primary">{isEdit ? "Save changes" : "Add"}</button>
       </div>
     </form>
+  );
+}
+
+// ─── Export modal — asks for Cuenta Origen (Santander) ────────
+function ExportGroupModal({ group, rows, groupType, onClose, dispatch, toast }) {
+  const [cuentaOrigen, setCuentaOrigen] = useState(group.cuentaOrigen || "");
+  const safeName = group.name.replace(/\s+/g, "_");
+
+  const handleExport = async (e) => {
+    e.preventDefault();
+    if (!rows.length) { toast("No lines in this group", "error"); onClose(); return; }
+    // Save cuenta origen back to group for next time
+    const updateAction = groupType === "payment" ? "UPDATE_PAYMENT_GROUP" : "UPDATE_REIMBURSEMENT_GROUP";
+    dispatch({ type: updateAction, payload: { id: group.id, cuentaOrigen } });
+    if (groupType === "payment") {
+      await exportBankPayments(rows, safeName, cuentaOrigen);
+    } else {
+      await exportReimbursements(rows, safeName, cuentaOrigen);
+    }
+    toast(`${rows.length} line(s) exported`, "success");
+    onClose();
+  };
+
+  return (
+    <Modal title={`Export — ${group.name}`} onClose={onClose}>
+      <form onSubmit={handleExport}>
+        <div className="form-group">
+          <label className="form-label">Cuenta origen (Santander)</label>
+          <input
+            className="form-input"
+            value={cuentaOrigen}
+            onChange={e => setCuentaOrigen(e.target.value)}
+            placeholder="Your Santander account number"
+          />
+          <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
+            This is Niuro&apos;s source account. It will be saved for next time.
+          </div>
+        </div>
+        <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 16 }}>
+          {rows.length} line{rows.length !== 1 ? "s" : ""} will be exported in Santander format.
+        </div>
+        <div className="form-actions">
+          <button type="button" className="btn btn--ghost" onClick={onClose}>Cancel</button>
+          <button type="submit" className="btn btn--primary" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <Download size={14} /> Download Excel
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
@@ -168,15 +267,9 @@ function PaymentGroup({ group, payments, dispatch, toast }) {
   const [open, setOpen] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [editItem, setEditItem] = useState(null);
+  const [showExport, setShowExport] = useState(false);
 
   const total = payments.reduce((s, p) => s + (p.amount || 0), 0);
-
-  const handleExport = async () => {
-    if (!payments.length) { toast("No invoices in this group", "error"); return; }
-    const safeName = group.name.replace(/\s+/g, "_");
-    await exportBankPayments(payments, safeName);
-    toast(`${payments.length} invoice(s) exported`, "success");
-  };
 
   return (
     <div className="section-block" style={{ marginBottom: 16 }}>
@@ -188,7 +281,7 @@ function PaymentGroup({ group, payments, dispatch, toast }) {
           <span style={{ fontSize: 13, fontVariantNumeric: "tabular-nums", color: "var(--text-secondary)" }}>{fmtCLP(total)}</span>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }} onClick={e => e.stopPropagation()}>
-          <button className="btn btn--ghost" style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13 }} onClick={handleExport}>
+          <button className="btn btn--ghost" style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13 }} onClick={() => setShowExport(true)}>
             <Download size={13} /> Export
           </button>
           <button className="btn btn--primary" style={{ fontSize: 13, padding: "5px 12px" }} onClick={() => setShowAdd(true)}>+ Add line</button>
@@ -245,6 +338,9 @@ function PaymentGroup({ group, payments, dispatch, toast }) {
             onCancel={() => setEditItem(null)}
           />
         </Modal>
+      )}
+      {showExport && (
+        <ExportGroupModal group={group} rows={payments} groupType="payment" dispatch={dispatch} toast={toast} onClose={() => setShowExport(false)} />
       )}
     </div>
   );
@@ -466,25 +562,6 @@ const REIMB_STATUS = [
 ];
 const CATEGORIES = ["Software","Travel","Equipment","Meals","Training","Office","Other"];
 
-async function exportReimbursements(rows, groupLabel) {
-  const suffix = groupLabel || new Date().toISOString().slice(0,10);
-  await toExcel(
-    rows.map(p => ({
-      "Name":           p.personName,
-      "Amount":         p.amount,
-      "Account #":      p.accountNumber || "",
-      "RUT":            p.rut || "",
-      "Bank Code":      p.bankCode || "",
-      "Email":          p.email || "",
-      "Detail / Glosa": p.detail || p.description || "",
-      "Date":           p.dateSubmitted,
-    })),
-    "Reimbursements",
-    `reimbursements_niuro_${suffix}.xlsx`,
-    [{ wch:22 },{ wch:12 },{ wch:16 },{ wch:14 },{ wch:14 },{ wch:26 },{ wch:30 },{ wch:14 }]
-  );
-}
-
 function AttachmentCell({ r, dispatch }) {
   const fileRef = useRef(null);
   const handleFile = (e) => {
@@ -601,16 +678,10 @@ function NewReimbursementGroupModal({ onClose }) {
 function ReimbursementGroup({ group, reimbursements, dispatch, toast }) {
   const [open, setOpen] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
+  const [showExport, setShowExport] = useState(false);
 
   const total = reimbursements.reduce((s, r) => s + (r.amount || 0), 0);
   const pending = reimbursements.filter(r => r.status === "pending").length;
-
-  const handleExport = async () => {
-    if (!reimbursements.length) { toast("No reimbursements in this group", "error"); return; }
-    const safeName = group.name.replace(/\s+/g, "_");
-    await exportReimbursements(reimbursements, safeName);
-    toast(`${reimbursements.length} reimbursement(s) exported`, "success");
-  };
 
   return (
     <div className="section-block" style={{ marginBottom: 16 }}>
@@ -623,7 +694,7 @@ function ReimbursementGroup({ group, reimbursements, dispatch, toast }) {
           <span style={{ fontSize: 13, fontVariantNumeric: "tabular-nums", color: "var(--text-secondary)" }}>${fmt(total)}</span>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }} onClick={e => e.stopPropagation()}>
-          <button className="btn btn--ghost" style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13 }} onClick={handleExport}>
+          <button className="btn btn--ghost" style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13 }} onClick={() => setShowExport(true)}>
             <Download size={13} /> Export
           </button>
           <button className="btn btn--primary" style={{ fontSize: 13, padding: "5px 12px" }} onClick={() => setShowAdd(true)}>+ Add line</button>
@@ -676,6 +747,9 @@ function ReimbursementGroup({ group, reimbursements, dispatch, toast }) {
           groupName={group.name}
           onClose={() => setShowAdd(false)}
         />
+      )}
+      {showExport && (
+        <ExportGroupModal group={group} rows={reimbursements} groupType="reimbursement" dispatch={dispatch} toast={toast} onClose={() => setShowExport(false)} />
       )}
     </div>
   );
