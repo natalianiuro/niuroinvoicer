@@ -2,6 +2,7 @@ import Head from "next/head";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useStore } from "@/lib/store";
+import { Check } from "lucide-react";
 import { getCountry } from "@/lib/countries";
 import { clients as CLIENT_LIST } from "@/lib/data/mock";
 
@@ -90,8 +91,28 @@ function ClientLogo({ client }) {
   );
 }
 
+// ─── Status toggle button ─────────────────────────────────────
+function StatusToggle({ done, onToggle, labelPending, labelDone }) {
+  return (
+    <button
+      onClick={onToggle}
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 5,
+        padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600,
+        border: "none", cursor: "pointer", transition: "all 0.15s",
+        background: done ? "var(--green-bg)" : "var(--yellow-bg)",
+        color: done ? "var(--green)" : "var(--yellow)",
+      }}
+    >
+      {done && <Check size={11} strokeWidth={2.5} />}
+      {done ? labelDone : labelPending}
+    </button>
+  );
+}
+
 // ─── Compliance reminder row ──────────────────────────────────
 function ComplianceReminderRow({ label, day, description }) {
+  const [paid, setPaid] = useState(false);
   const today = new Date();
   let target = new Date(today.getFullYear(), today.getMonth(), day);
   if (today.getDate() >= day) target = new Date(today.getFullYear(), today.getMonth() + 1, day);
@@ -108,9 +129,35 @@ function ComplianceReminderRow({ label, day, description }) {
         <div className="reminder-name">{label}</div>
         <div className="reminder-detail">{description}</div>
       </div>
-      <div className="reminder-date">
+      <div className="reminder-date" style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <span className={`badge ${badgeClass}`}>{diff === 0 ? "Today!" : diff === 1 ? "Tomorrow" : `in ${diff} days`}</span>
-        {" · "}{dateStr}
+        <span style={{ color: "var(--text-muted)", fontSize: 12 }}>{dateStr}</span>
+        <StatusToggle done={paid} onToggle={() => setPaid(v => !v)} labelPending="Pending" labelDone="Paid" />
+      </div>
+    </div>
+  );
+}
+
+// ─── Event reminder row ───────────────────────────────────────
+function EventReminderRow({ event }) {
+  const [sent, setSent] = useState(false);
+  const isBirthday = event.type === "Birthday";
+  const emoji = isBirthday ? "🎂" : "🎉";
+  return (
+    <div className="reminder-item">
+      <div className="reminder-avatar" style={{ fontSize: 18, background: "var(--bg-subtle, #f5f5f5)" }}>
+        {emoji}
+      </div>
+      <div>
+        <div className="reminder-name">{event.name}</div>
+        <div className="reminder-detail">{event.type}</div>
+      </div>
+      <div className="reminder-date" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ color: "var(--text-secondary)", fontSize: 12 }}>
+          {event.daysUntil === 0 ? "Today!" : event.daysUntil === 1 ? "Tomorrow" : `in ${event.daysUntil} days`}
+          {" · "}{formatEventDate(event.date)}
+        </span>
+        <StatusToggle done={sent} onToggle={() => setSent(v => !v)} labelPending="Email Pending" labelDone="Email Sent" />
       </div>
     </div>
   );
@@ -307,17 +354,7 @@ export default function Dashboard() {
           <ComplianceReminderRow label="Previred" day={13} description="Social security contributions" />
           <ComplianceReminderRow label="F29" day={20} description="VAT declaration & payment" />
           {upcomingEvents.map((event, i) => (
-            <div className="reminder-item" key={i}>
-              <div className="reminder-avatar">{getInitials(event.name)}</div>
-              <div>
-                <div className="reminder-name">{event.name}</div>
-                <div className="reminder-detail">{event.type}</div>
-              </div>
-              <div className="reminder-date">
-                {event.daysUntil === 0 ? "Today!" : event.daysUntil === 1 ? "Tomorrow" : `in ${event.daysUntil} days`}
-                {" · "}{formatEventDate(event.date)}
-              </div>
-            </div>
+            <EventReminderRow key={i} event={event} />
           ))}
           {upcomingEvents.length === 0 && (
             <div style={{ padding: "8px 0", fontSize: 13, color: "var(--text-muted)" }}>No team events in the next 30 days.</div>
