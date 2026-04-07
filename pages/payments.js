@@ -49,6 +49,7 @@ const COL = {
   glosaDestino:  "Glosa cartola destino(opcional, solo aplica si la cuenta destino es Santander)",
 };
 const SANTANDER_WIDTHS = [{ wch:22 },{ wch:16 },{ wch:22 },{ wch:16 },{ wch:16 },{ wch:20 },{ wch:30 },{ wch:18 },{ wch:36 },{ wch:28 },{ wch:28 },{ wch:36 },{ wch:36 }];
+const padAccount = (n) => String(n || "").replace(/\D/g, "").padStart(22, "0");
 
 async function exportBankPayments(payments, groupLabel, cuentaOrigen) {
   const suffix = groupLabel || new Date().toISOString().slice(0,10);
@@ -56,7 +57,7 @@ async function exportBankPayments(payments, groupLabel, cuentaOrigen) {
     payments.map((p) => ({
       [COL.cuentaOrigen]:  cuentaOrigen || "",
       [COL.monedaOrigen]:  "CLP",
-      [COL.cuentaDestino]: p.accountNumber || "",
+      [COL.cuentaDestino]: padAccount(p.accountNumber),
       [COL.monedaDestino]: "CLP",
       [COL.codigoBanco]:   p.bankCode || "",
       [COL.rut]:           p.rut || "",
@@ -80,7 +81,7 @@ async function exportReimbursements(rows, groupLabel, cuentaOrigen) {
     rows.map((r) => ({
       [COL.cuentaOrigen]:  cuentaOrigen || "",
       [COL.monedaOrigen]:  "CLP",
-      [COL.cuentaDestino]: r.accountNumber || "",
+      [COL.cuentaDestino]: padAccount(r.accountNumber),
       [COL.monedaDestino]: "CLP",
       [COL.codigoBanco]:   r.bankCode || "",
       [COL.rut]:           r.rut || "",
@@ -712,29 +713,27 @@ function ReimbursementGroup({ group, reimbursements, dispatch, toast }) {
         ) : (
           <table className="hr-table">
             <thead><tr>
-              <th>Person</th><th>Detail</th><th>Category</th><th>Amount</th><th>Date</th><th>Status</th><th>File</th><th></th>
+              <th>Beneficiary</th><th>Amount</th><th>Account #</th><th>Bank</th><th>Email</th><th>Glosa</th><th>Date</th><th></th>
             </tr></thead>
             <tbody>
               {reimbursements.map(r => (
                 <tr key={r.id}>
                   <td style={{ fontWeight: 500 }}>{r.personName}</td>
-                  <td style={{ color: "var(--text-secondary)", fontSize: 12 }}>{r.detail || r.description || "—"}</td>
-                  <td><span className="badge badge--gray">{r.category}</span></td>
-                  <td>${r.amount?.toFixed(2)}</td>
+                  <td style={{ fontVariantNumeric: "tabular-nums" }}>${r.amount?.toFixed(2)}</td>
+                  <td style={{ fontFamily: "monospace", fontSize: 12, color: "var(--text-secondary)" }}>{r.accountNumber || "—"}</td>
+                  <td style={{ fontSize: 12, color: "var(--text-secondary)" }}>{r.bankCode || "—"}</td>
+                  <td style={{ fontSize: 12, color: "var(--text-secondary)" }}>{r.email || "—"}</td>
+                  <td style={{ fontSize: 12, color: "var(--text-secondary)" }}>{r.detail || r.description || "—"}</td>
                   <td style={{ color: "var(--text-secondary)", fontSize: 12 }}>{r.dateSubmitted}</td>
-                  <td>
-                    <StatusSelect value={r.status} options={REIMB_STATUS} onChange={status => { dispatch({ type: "UPDATE_REIMBURSEMENT_STATUS", payload: { id: r.id, status } }); toast("Status updated", "success"); }} />
-                  </td>
-                  <td><AttachmentCell r={r} dispatch={dispatch} /></td>
                   <td><DeleteButton onDelete={() => { dispatch({ type: "DELETE_REIMBURSEMENT", payload: r.id }); toast("Deleted"); }} /></td>
                 </tr>
               ))}
             </tbody>
             <tfoot>
               <tr>
-                <td colSpan={3} style={{ padding: "10px 20px", fontWeight: 600, fontSize: 13, color: "var(--text-secondary)" }}>Total</td>
+                <td colSpan={1} style={{ padding: "10px 20px", fontWeight: 600, fontSize: 13, color: "var(--text-secondary)" }}>Total</td>
                 <td style={{ padding: "10px 20px", fontWeight: 700 }}>${fmt(total)}</td>
-                <td colSpan={4} />
+                <td colSpan={6} />
               </tr>
             </tfoot>
           </table>
