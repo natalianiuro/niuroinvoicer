@@ -466,7 +466,8 @@ const REIMB_STATUS = [
 ];
 const CATEGORIES = ["Software","Travel","Equipment","Meals","Training","Office","Other"];
 
-async function exportReimbursements(rows) {
+async function exportReimbursements(rows, groupLabel) {
+  const suffix = groupLabel || new Date().toISOString().slice(0,10);
   await toExcel(
     rows.map(p => ({
       "Name":           p.personName,
@@ -479,7 +480,7 @@ async function exportReimbursements(rows) {
       "Date":           p.dateSubmitted,
     })),
     "Reimbursements",
-    `reimbursements_niuro_${new Date().toISOString().slice(0,10)}.xlsx`,
+    `reimbursements_niuro_${suffix}.xlsx`,
     [{ wch:22 },{ wch:12 },{ wch:16 },{ wch:14 },{ wch:14 },{ wch:26 },{ wch:30 },{ wch:14 }]
   );
 }
@@ -509,7 +510,7 @@ function AttachmentCell({ r, dispatch }) {
   );
 }
 
-function AddReimbursementModal({ onClose }) {
+function AddReimbursementModal({ onClose, groupId, groupName }) {
   const { dispatch } = useStore();
   const toast = useToast();
   const [form, setForm] = useState({ personName: "", detail: "", amount: "", category: "Software", dateSubmitted: new Date().toISOString().slice(0,10), accountNumber: "", bankCode: "", rut: "", email: "", description: "" });
@@ -517,12 +518,13 @@ function AddReimbursementModal({ onClose }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!form.personName || !form.amount) return;
-    dispatch({ type: "ADD_REIMBURSEMENT", payload: { id: newId(), ...form, amount: parseFloat(form.amount), status: "pending", attachment: null } });
+    dispatch({ type: "ADD_REIMBURSEMENT", payload: { id: newId(), ...form, amount: parseFloat(form.amount), status: "pending", attachment: null, groupId: groupId || null } });
     toast("Reimbursement added", "success");
     onClose();
   };
+  const title = groupName ? `Add Reimbursement — ${groupName}` : "Add Reimbursement";
   return (
-    <Modal title="Add Reimbursement" onClose={onClose} width={540}>
+    <Modal title={title} onClose={onClose} width={540}>
       <form onSubmit={handleSubmit}>
         <div className="form-row">
           <div className="form-group"><label className="form-label">Person *</label><input className="form-input" value={form.personName} onChange={e => set("personName", e.target.value)} required /></div>
@@ -550,66 +552,100 @@ function AddReimbursementModal({ onClose }) {
   );
 }
 
-function ReimbursementsTab() {
-  const { state, dispatch } = useStore();
+// ─── New Reimbursement Group Modal ───────────────────────────
+function NewReimbursementGroupModal({ onClose }) {
+  const { dispatch } = useStore();
   const toast = useToast();
-  const { reimbursements } = state;
-  const [search, setSearch] = useState("");
-  const [filterStatus, setFilterStatus] = useState("all");
-  const [selected, setSelected] = useState(new Set());
+  const now = new Date();
+  const [form, setForm] = useState({
+    name: `${MONTHS[now.getMonth()]} ${now.getFullYear()}`,
+    month: now.getMonth() + 1,
+    year: now.getFullYear(),
+  });
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    dispatch({ type: "ADD_REIMBURSEMENT_GROUP", payload: { id: newId(), ...form, month: Number(form.month), year: Number(form.year) } });
+    toast("Group created", "success");
+    onClose();
+  };
+  return (
+    <Modal title="New Reimbursement Group" onClose={onClose}>
+      <form onSubmit={handleSubmit}>
+        <div className="form-group">
+          <label className="form-label">Group name *</label>
+          <input className="form-input" value={form.name} onChange={e => set("name", e.target.value)} required />
+        </div>
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Month</label>
+            <select className="form-select" value={form.month} onChange={e => { const m = Number(e.target.value); set("month", m); set("name", `${MONTHS[m-1]} ${form.year}`); }}>
+              {MONTHS.map((m, i) => <option key={i} value={i+1}>{m}</option>)}
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Year</label>
+            <input className="form-input" type="number" value={form.year} onChange={e => { set("year", e.target.value); set("name", `${MONTHS[form.month-1]} ${e.target.value}`); }} />
+          </div>
+        </div>
+        <div className="form-actions">
+          <button type="button" className="btn btn--ghost" onClick={onClose}>Cancel</button>
+          <button type="submit" className="btn btn--primary">Create group</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+// ─── Single reimbursement group ───────────────────────────────
+function ReimbursementGroup({ group, reimbursements, dispatch, toast }) {
+  const [open, setOpen] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
 
-  const filtered = reimbursements.filter(r => {
-    const ms = (r.personName || "").toLowerCase().includes(search.toLowerCase()) || (r.detail || r.description || "").toLowerCase().includes(search.toLowerCase());
-    const mf = filterStatus === "all" || r.status === filterStatus;
-    return ms && mf;
-  });
-
-  const toggleSelect = (id) => setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
-  const toggleAll = () => setSelected(selected.size === filtered.length ? new Set() : new Set(filtered.map(r => r.id)));
-  const total = filtered.reduce((s, r) => s + (r.amount || 0), 0);
+  const total = reimbursements.reduce((s, r) => s + (r.amount || 0), 0);
+  const pending = reimbursements.filter(r => r.status === "pending").length;
 
   const handleExport = async () => {
-    const rows = selected.size > 0 ? reimbursements.filter(r => selected.has(r.id)) : filtered;
-    if (!rows.length) { toast("No reimbursements to export", "error"); return; }
-    await exportReimbursements(rows);
-    toast(`${rows.length} reimbursement(s) exported`, "success");
+    if (!reimbursements.length) { toast("No reimbursements in this group", "error"); return; }
+    const safeName = group.name.replace(/\s+/g, "_");
+    await exportReimbursements(reimbursements, safeName);
+    toast(`${reimbursements.length} reimbursement(s) exported`, "success");
   };
 
   return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <div className="filter-tabs">
-            {[["all", "All"], ...REIMB_STATUS.map(s => [s.value, s.label])].map(([v, l]) => (
-              <button key={v} className={`filter-tab${filterStatus === v ? " filter-tab--active" : ""}`} onClick={() => setFilterStatus(v)}>{l}</button>
-            ))}
+    <div className="section-block" style={{ marginBottom: 16 }}>
+      {/* Group header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 20px", borderBottom: open ? "1px solid var(--border-light)" : "none", cursor: "pointer" }} onClick={() => setOpen(o => !o)}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>{group.name}</span>
+          <span className="badge badge--gray">{reimbursements.length} {reimbursements.length === 1 ? "line" : "lines"}</span>
+          {pending > 0 && <span className="badge badge--yellow">{pending} pending</span>}
+          <span style={{ fontSize: 13, fontVariantNumeric: "tabular-nums", color: "var(--text-secondary)" }}>${fmt(total)}</span>
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }} onClick={e => e.stopPropagation()}>
+          <button className="btn btn--ghost" style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13 }} onClick={handleExport}>
+            <Download size={13} /> Export
+          </button>
+          <button className="btn btn--primary" style={{ fontSize: 13, padding: "5px 12px" }} onClick={() => setShowAdd(true)}>+ Add line</button>
+          <DeleteButton onDelete={() => dispatch({ type: "DELETE_REIMBURSEMENT_GROUP", payload: group.id })} />
+          <span style={{ color: "var(--text-muted)", fontSize: 12, marginLeft: 4 }}>{open ? "▲" : "▼"}</span>
+        </div>
+      </div>
+
+      {/* Lines table */}
+      {open && (
+        reimbursements.length === 0 ? (
+          <div style={{ padding: "20px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
+            No lines yet. <button className="btn btn--ghost" style={{ fontSize: 13 }} onClick={() => setShowAdd(true)}>+ Add line</button>
           </div>
-          <SearchBar value={search} onChange={setSearch} placeholder="Search…" />
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button className="btn btn--ghost" onClick={handleExport} style={{ display: "flex", alignItems: "center", gap: 6 }}><Download size={14} />{selected.size > 0 ? `Export (${selected.size})` : "Export Excel"}</button>
-          <button className="btn btn--primary" onClick={() => setShowAdd(true)}>+ Add</button>
-        </div>
-      </div>
-      <div className="card-grid" style={{ gridTemplateColumns: "repeat(3,1fr)", maxWidth: 520, marginBottom: 20 }}>
-        <div className="summary-card"><div className="summary-card__label">Total</div><div className="summary-card__value">{reimbursements.length}</div></div>
-        <div className="summary-card"><div className="summary-card__label">Pending</div><div className="summary-card__value">{reimbursements.filter(r => r.status === "pending").length}</div></div>
-        <div className="summary-card"><div className="summary-card__label">Filtered amount</div><div className="summary-card__value" style={{ fontSize: 18 }}>${fmt(total)}</div></div>
-      </div>
-      <div className="section-block">
-        {filtered.length === 0 ? (
-          <div className="empty-state"><div className="empty-state__icon"><Receipt size={28} color="var(--text-muted)" /></div><div className="empty-state__title">No reimbursements</div><button className="btn btn--primary" onClick={() => setShowAdd(true)}>+ Add</button></div>
         ) : (
           <table className="hr-table">
             <thead><tr>
-              <th style={{ width: 36 }}><input type="checkbox" checked={selected.size === filtered.length && filtered.length > 0} onChange={toggleAll} style={{ cursor: "pointer", accentColor: "var(--accent)" }} /></th>
               <th>Person</th><th>Detail</th><th>Category</th><th>Amount</th><th>Date</th><th>Status</th><th>File</th><th></th>
             </tr></thead>
             <tbody>
-              {filtered.map(r => (
-                <tr key={r.id} style={{ background: selected.has(r.id) ? "var(--accent-soft)" : undefined }}>
-                  <td onClick={e => e.stopPropagation()}><input type="checkbox" checked={selected.has(r.id)} onChange={() => toggleSelect(r.id)} style={{ cursor: "pointer", accentColor: "var(--accent)" }} /></td>
+              {reimbursements.map(r => (
+                <tr key={r.id}>
                   <td style={{ fontWeight: 500 }}>{r.personName}</td>
                   <td style={{ color: "var(--text-secondary)", fontSize: 12 }}>{r.detail || r.description || "—"}</td>
                   <td><span className="badge badge--gray">{r.category}</span></td>
@@ -623,11 +659,91 @@ function ReimbursementsTab() {
                 </tr>
               ))}
             </tbody>
-            <tfoot><tr><td colSpan={4} style={{ padding: "12px 20px", fontWeight: 600, fontSize: 13, color: "var(--text-secondary)" }}>Total</td><td style={{ padding: "12px 20px", fontWeight: 700 }}>${fmt(total)}</td><td colSpan={4} /></tr></tfoot>
+            <tfoot>
+              <tr>
+                <td colSpan={3} style={{ padding: "10px 20px", fontWeight: 600, fontSize: 13, color: "var(--text-secondary)" }}>Total</td>
+                <td style={{ padding: "10px 20px", fontWeight: 700 }}>${fmt(total)}</td>
+                <td colSpan={4} />
+              </tr>
+            </tfoot>
           </table>
-        )}
+        )
+      )}
+
+      {showAdd && (
+        <AddReimbursementModal
+          groupId={group.id}
+          groupName={group.name}
+          onClose={() => setShowAdd(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function ReimbursementsTab() {
+  const { state, dispatch } = useStore();
+  const toast = useToast();
+  const groups = state.reimbursementGroups || [];
+  const { reimbursements } = state;
+  const [showNewGroup, setShowNewGroup] = useState(false);
+
+  const ungrouped = reimbursements.filter(r => !r.groupId || !groups.find(g => g.id === r.groupId));
+  const totalAll = reimbursements.reduce((s, r) => s + (r.amount || 0), 0);
+  const pendingAll = reimbursements.filter(r => r.status === "pending").length;
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+        <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>
+          {groups.length} group{groups.length !== 1 ? "s" : ""} · {reimbursements.length} total lines · {pendingAll} pending · ${fmt(totalAll)}
+        </span>
+        <button className="btn btn--primary" onClick={() => setShowNewGroup(true)}>+ New group</button>
       </div>
-      {showAdd && <AddReimbursementModal onClose={() => setShowAdd(false)} />}
+
+      {groups.length === 0 && (
+        <div className="empty-state">
+          <div className="empty-state__icon"><Receipt size={28} color="var(--text-muted)" /></div>
+          <div className="empty-state__title">No reimbursement groups yet</div>
+          <div className="empty-state__sub">Create a group for each month to keep reimbursements organised.</div>
+          <button className="btn btn--primary" onClick={() => setShowNewGroup(true)}>+ New group</button>
+        </div>
+      )}
+
+      {groups.map(group => (
+        <ReimbursementGroup
+          key={group.id}
+          group={group}
+          reimbursements={reimbursements.filter(r => r.groupId === group.id)}
+          dispatch={dispatch}
+          toast={toast}
+        />
+      ))}
+
+      {ungrouped.length > 0 && (
+        <div className="section-block" style={{ marginBottom: 16 }}>
+          <div style={{ padding: "12px 20px", fontWeight: 600, fontSize: 13, color: "var(--text-muted)", borderBottom: "1px solid var(--border-light)" }}>Ungrouped</div>
+          <table className="hr-table">
+            <thead><tr><th>Person</th><th>Detail</th><th>Category</th><th>Amount</th><th>Date</th><th>Status</th><th>File</th><th></th></tr></thead>
+            <tbody>
+              {ungrouped.map(r => (
+                <tr key={r.id}>
+                  <td style={{ fontWeight: 500 }}>{r.personName}</td>
+                  <td style={{ color: "var(--text-secondary)", fontSize: 12 }}>{r.detail || r.description || "—"}</td>
+                  <td><span className="badge badge--gray">{r.category}</span></td>
+                  <td>${r.amount?.toFixed(2)}</td>
+                  <td style={{ color: "var(--text-secondary)", fontSize: 12 }}>{r.dateSubmitted}</td>
+                  <td><StatusSelect value={r.status} options={REIMB_STATUS} onChange={status => { dispatch({ type: "UPDATE_REIMBURSEMENT_STATUS", payload: { id: r.id, status } }); toast("Status updated", "success"); }} /></td>
+                  <td><AttachmentCell r={r} dispatch={dispatch} /></td>
+                  <td><DeleteButton onDelete={() => { dispatch({ type: "DELETE_REIMBURSEMENT", payload: r.id }); toast("Deleted"); }} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {showNewGroup && <NewReimbursementGroupModal onClose={() => setShowNewGroup(false)} />}
     </div>
   );
 }
