@@ -32,7 +32,8 @@ const COMMON_BENEFICIARIES = [
   { name: "Contabilidad", email: "contador@estudio.cl",accountNumber: "55667788", bankCode: "001" },
 ];
 
-async function exportBankPayments(payments) {
+async function exportBankPayments(payments, groupLabel) {
+  const suffix = groupLabel || new Date().toISOString().slice(0,10);
   await toExcel(
     payments.map((p) => ({
       "Beneficiary":    p.beneficiaryName,
@@ -44,7 +45,7 @@ async function exportBankPayments(payments) {
       "Date":           p.date,
     })),
     "Facturas",
-    `facturas_niuro_${new Date().toISOString().slice(0,10)}.xlsx`,
+    `facturas_niuro_${suffix}.xlsx`,
     [{ wch:22 },{ wch:14 },{ wch:18 },{ wch:14 },{ wch:26 },{ wch:36 },{ wch:14 }]
   );
 }
@@ -117,59 +118,99 @@ function BankPaymentForm({ initial, onSave, onCancel }) {
   );
 }
 
-function BankPaymentsTab() {
-  const { state, dispatch } = useStore();
+// ─── New Group Modal ──────────────────────────────────────────
+function NewGroupModal({ onClose }) {
+  const { dispatch } = useStore();
   const toast = useToast();
-  const { bankPayments } = state;
-  const [search, setSearch] = useState("");
-  const [selected, setSelected] = useState(new Set());
+  const now = new Date();
+  const [form, setForm] = useState({
+    name: `${MONTHS[now.getMonth()]} ${now.getFullYear()}`,
+    month: now.getMonth() + 1,
+    year: now.getFullYear(),
+  });
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    dispatch({ type: "ADD_PAYMENT_GROUP", payload: { id: newId(), ...form, month: Number(form.month), year: Number(form.year) } });
+    toast("Group created", "success");
+    onClose();
+  };
+  return (
+    <Modal title="New Invoice Group" onClose={onClose}>
+      <form onSubmit={handleSubmit}>
+        <div className="form-group">
+          <label className="form-label">Group name *</label>
+          <input className="form-input" value={form.name} onChange={e => set("name", e.target.value)} required />
+        </div>
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Month</label>
+            <select className="form-select" value={form.month} onChange={e => { const m = Number(e.target.value); set("month", m); set("name", `${MONTHS[m-1]} ${form.year}`); }}>
+              {MONTHS.map((m, i) => <option key={i} value={i+1}>{m}</option>)}
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Year</label>
+            <input className="form-input" type="number" value={form.year} onChange={e => { set("year", e.target.value); set("name", `${MONTHS[form.month-1]} ${e.target.value}`); }} />
+          </div>
+        </div>
+        <div className="form-actions">
+          <button type="button" className="btn btn--ghost" onClick={onClose}>Cancel</button>
+          <button type="submit" className="btn btn--primary">Create group</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+// ─── Single group section ─────────────────────────────────────
+function PaymentGroup({ group, payments, dispatch, toast }) {
+  const [open, setOpen] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [editItem, setEditItem] = useState(null);
 
-  const filtered = bankPayments.filter(p =>
-    p.beneficiaryName.toLowerCase().includes(search.toLowerCase()) ||
-    (p.glosa || "").toLowerCase().includes(search.toLowerCase())
-  );
-
-  const toggleSelect = (id) => setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
-  const toggleAll = () => setSelected(selected.size === filtered.length ? new Set() : new Set(filtered.map(p => p.id)));
+  const total = payments.reduce((s, p) => s + (p.amount || 0), 0);
 
   const handleExport = async () => {
-    const rows = selected.size > 0 ? bankPayments.filter(p => selected.has(p.id)) : filtered;
-    if (!rows.length) { toast("No payments to export", "error"); return; }
-    await exportBankPayments(rows);
-    toast(`${rows.length} payment(s) exported`, "success");
+    if (!payments.length) { toast("No invoices in this group", "error"); return; }
+    const safeName = group.name.replace(/\s+/g, "_");
+    await exportBankPayments(payments, safeName);
+    toast(`${payments.length} invoice(s) exported`, "success");
   };
 
   return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <SearchBar value={search} onChange={setSearch} placeholder="Search beneficiary or glosa…" />
-        <div style={{ display: "flex", gap: 8 }}>
-          <button className="btn btn--ghost" onClick={handleExport} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <Download size={14} /> {selected.size > 0 ? `Export (${selected.size})` : "Export Excel"}
+    <div className="section-block" style={{ marginBottom: 16 }}>
+      {/* Group header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 20px", borderBottom: open ? "1px solid var(--border-light)" : "none", cursor: "pointer" }} onClick={() => setOpen(o => !o)}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>{group.name}</span>
+          <span className="badge badge--gray">{payments.length} {payments.length === 1 ? "line" : "lines"}</span>
+          <span style={{ fontSize: 13, fontVariantNumeric: "tabular-nums", color: "var(--text-secondary)" }}>{fmtCLP(total)}</span>
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }} onClick={e => e.stopPropagation()}>
+          <button className="btn btn--ghost" style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13 }} onClick={handleExport}>
+            <Download size={13} /> Export
           </button>
-          <button className="btn btn--primary" onClick={() => setShowAdd(true)}>+ Add</button>
+          <button className="btn btn--primary" style={{ fontSize: 13, padding: "5px 12px" }} onClick={() => setShowAdd(true)}>+ Add line</button>
+          <DeleteButton onDelete={() => dispatch({ type: "DELETE_PAYMENT_GROUP", payload: group.id })} />
+          <span style={{ color: "var(--text-muted)", fontSize: 12, marginLeft: 4 }}>{open ? "▲" : "▼"}</span>
         </div>
       </div>
-      <div className="card-grid" style={{ gridTemplateColumns: "repeat(3,1fr)", maxWidth: 520, marginBottom: 20 }}>
-        <div className="summary-card"><div className="summary-card__label">Total payments</div><div className="summary-card__value">{bankPayments.length}</div></div>
-        <div className="summary-card"><div className="summary-card__label">Total amount</div><div className="summary-card__value" style={{ fontSize: 18 }}>{fmtCLP(bankPayments.reduce((s, p) => s + p.amount, 0))}</div></div>
-        <div className="summary-card"><div className="summary-card__label">Selected</div><div className="summary-card__value">{selected.size || "—"}</div></div>
-      </div>
-      <div className="section-block">
-        {filtered.length === 0 ? (
-          <div className="empty-state"><div className="empty-state__icon"><CreditCard size={28} color="var(--text-muted)" /></div><div className="empty-state__title">No payments</div><button className="btn btn--primary" onClick={() => setShowAdd(true)}>+ Add</button></div>
+
+      {/* Lines table */}
+      {open && (
+        payments.length === 0 ? (
+          <div style={{ padding: "20px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
+            No lines yet. <button className="btn btn--ghost" style={{ fontSize: 13 }} onClick={() => setShowAdd(true)}>+ Add line</button>
+          </div>
         ) : (
           <table className="hr-table">
             <thead><tr>
-              <th style={{ width: 36 }}><input type="checkbox" checked={selected.size === filtered.length && filtered.length > 0} onChange={toggleAll} style={{ cursor: "pointer", accentColor: "var(--accent)" }} /></th>
               <th>Beneficiary</th><th>Amount</th><th>Account #</th><th>Bank</th><th>Email</th><th>Glosa</th><th>Date</th><th></th>
             </tr></thead>
             <tbody>
-              {filtered.map(p => (
-                <tr key={p.id} onClick={() => toggleSelect(p.id)} style={{ cursor: "pointer", background: selected.has(p.id) ? "var(--accent-soft)" : undefined }}>
-                  <td onClick={e => e.stopPropagation()}><input type="checkbox" checked={selected.has(p.id)} onChange={() => toggleSelect(p.id)} style={{ cursor: "pointer", accentColor: "var(--accent)" }} /></td>
+              {payments.map(p => (
+                <tr key={p.id}>
                   <td style={{ fontWeight: 500 }}>{p.beneficiaryName}</td>
                   <td style={{ fontVariantNumeric: "tabular-nums" }}>{fmtCLP(p.amount)}</td>
                   <td style={{ fontFamily: "monospace", fontSize: 12, color: "var(--text-muted)" }}>{p.accountNumber || "—"}</td>
@@ -177,26 +218,101 @@ function BankPaymentsTab() {
                   <td style={{ fontSize: 12, color: "var(--text-secondary)" }}>{p.email || "—"}</td>
                   <td style={{ fontSize: 12, color: "var(--text-secondary)", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.glosa || "—"}</td>
                   <td style={{ fontSize: 12, color: "var(--text-secondary)" }}>{p.date || "—"}</td>
-                  <td onClick={e => e.stopPropagation()} style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                  <td style={{ display: "flex", gap: 4, alignItems: "center" }}>
                     <button className="btn-delete" title="Edit" onClick={() => setEditItem(p)}><Pencil size={13} /></button>
-                    <DeleteButton onDelete={() => { dispatch({ type: "DELETE_BANK_PAYMENT", payload: p.id }); toast("Payment deleted"); }} />
+                    <DeleteButton onDelete={() => { dispatch({ type: "DELETE_BANK_PAYMENT", payload: p.id }); toast("Deleted"); }} />
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        )}
-      </div>
+        )
+      )}
+
       {showAdd && (
-        <Modal title="Add Payment" onClose={() => setShowAdd(false)} width={520}>
-          <BankPaymentForm onSave={(data) => { dispatch({ type: "ADD_BANK_PAYMENT", payload: { id: newId(), ...data } }); toast("Payment added", "success"); setShowAdd(false); }} onCancel={() => setShowAdd(false)} />
+        <Modal title={`Add line — ${group.name}`} onClose={() => setShowAdd(false)} width={520}>
+          <BankPaymentForm
+            onSave={(data) => { dispatch({ type: "ADD_BANK_PAYMENT", payload: { id: newId(), groupId: group.id, ...data } }); toast("Line added", "success"); setShowAdd(false); }}
+            onCancel={() => setShowAdd(false)}
+          />
         </Modal>
       )}
       {editItem && (
-        <Modal title="Edit Payment" onClose={() => setEditItem(null)} width={520}>
-          <BankPaymentForm initial={editItem} onSave={(data) => { dispatch({ type: "UPDATE_BANK_PAYMENT", payload: { id: editItem.id, ...data } }); toast("Payment updated", "success"); setEditItem(null); }} onCancel={() => setEditItem(null)} />
+        <Modal title="Edit line" onClose={() => setEditItem(null)} width={520}>
+          <BankPaymentForm
+            initial={editItem}
+            onSave={(data) => { dispatch({ type: "UPDATE_BANK_PAYMENT", payload: { id: editItem.id, ...data } }); toast("Saved", "success"); setEditItem(null); }}
+            onCancel={() => setEditItem(null)}
+          />
         </Modal>
       )}
+    </div>
+  );
+}
+
+function BankPaymentsTab() {
+  const { state, dispatch } = useStore();
+  const toast = useToast();
+  const groups = state.paymentGroups || [];
+  const { bankPayments } = state;
+  const [showNewGroup, setShowNewGroup] = useState(false);
+
+  // Payments with no group (legacy / ungrouped)
+  const ungrouped = bankPayments.filter(p => !p.groupId || !groups.find(g => g.id === p.groupId));
+  const totalAll = bankPayments.reduce((s, p) => s + (p.amount || 0), 0);
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+        <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+          <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>{groups.length} group{groups.length !== 1 ? "s" : ""} · {bankPayments.length} total lines · {fmtCLP(totalAll)}</span>
+        </div>
+        <button className="btn btn--primary" onClick={() => setShowNewGroup(true)}>+ New group</button>
+      </div>
+
+      {groups.length === 0 && (
+        <div className="empty-state">
+          <div className="empty-state__icon"><CreditCard size={28} color="var(--text-muted)" /></div>
+          <div className="empty-state__title">No invoice groups yet</div>
+          <div className="empty-state__sub">Create a group for each month to keep invoices organised.</div>
+          <button className="btn btn--primary" onClick={() => setShowNewGroup(true)}>+ New group</button>
+        </div>
+      )}
+
+      {groups.map(group => (
+        <PaymentGroup
+          key={group.id}
+          group={group}
+          payments={bankPayments.filter(p => p.groupId === group.id)}
+          dispatch={dispatch}
+          toast={toast}
+        />
+      ))}
+
+      {ungrouped.length > 0 && (
+        <div className="section-block" style={{ marginBottom: 16 }}>
+          <div style={{ padding: "12px 20px", fontWeight: 600, fontSize: 13, color: "var(--text-muted)", borderBottom: "1px solid var(--border-light)" }}>Ungrouped</div>
+          <table className="hr-table">
+            <thead><tr><th>Beneficiary</th><th>Amount</th><th>Account #</th><th>Bank</th><th>Email</th><th>Glosa</th><th>Date</th><th></th></tr></thead>
+            <tbody>
+              {ungrouped.map(p => (
+                <tr key={p.id}>
+                  <td style={{ fontWeight: 500 }}>{p.beneficiaryName}</td>
+                  <td style={{ fontVariantNumeric: "tabular-nums" }}>{fmtCLP(p.amount)}</td>
+                  <td style={{ fontFamily: "monospace", fontSize: 12, color: "var(--text-muted)" }}>{p.accountNumber || "—"}</td>
+                  <td style={{ fontSize: 12 }}>{p.bankCode || "—"}</td>
+                  <td style={{ fontSize: 12 }}>{p.email || "—"}</td>
+                  <td style={{ fontSize: 12, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.glosa || "—"}</td>
+                  <td style={{ fontSize: 12 }}>{p.date || "—"}</td>
+                  <td><DeleteButton onDelete={() => { dispatch({ type: "DELETE_BANK_PAYMENT", payload: p.id }); toast("Deleted"); }} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {showNewGroup && <NewGroupModal onClose={() => setShowNewGroup(false)} />}
     </div>
   );
 }
