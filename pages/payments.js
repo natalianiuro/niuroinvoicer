@@ -300,12 +300,13 @@ function PaymentGroup({ group, payments, dispatch, toast }) {
         ) : (
           <table className="hr-table">
             <thead><tr>
-              <th>Beneficiary</th><th>Amount</th><th>Account #</th><th>Bank</th><th>Email</th><th>Glosa</th><th>Date</th><th></th>
+              <th>Beneficiary</th><th>RUT</th><th>Amount</th><th>Account #</th><th>Bank</th><th>Email</th><th>Glosa</th><th>Date</th><th></th>
             </tr></thead>
             <tbody>
               {payments.map(p => (
                 <tr key={p.id}>
                   <td style={{ fontWeight: 500 }}>{p.beneficiaryName}</td>
+                  <td style={{ fontFamily: "monospace", fontSize: 12, color: "var(--text-secondary)" }}>{p.rut || "—"}</td>
                   <td style={{ fontVariantNumeric: "tabular-nums" }}>{fmtCLP(p.amount)}</td>
                   <td style={{ fontFamily: "monospace", fontSize: 12, color: "var(--text-muted)" }}>{p.accountNumber || "—"}</td>
                   <td style={{ fontSize: 12, color: "var(--text-secondary)" }}>{p.bankCode || "—"}</td>
@@ -713,12 +714,13 @@ function ReimbursementGroup({ group, reimbursements, dispatch, toast }) {
         ) : (
           <table className="hr-table">
             <thead><tr>
-              <th>Beneficiary</th><th>Amount</th><th>Account #</th><th>Bank</th><th>Email</th><th>Glosa</th><th>Date</th><th></th>
+              <th>Beneficiary</th><th>RUT</th><th>Amount</th><th>Account #</th><th>Bank</th><th>Email</th><th>Glosa</th><th>Date</th><th></th>
             </tr></thead>
             <tbody>
               {reimbursements.map(r => (
                 <tr key={r.id}>
                   <td style={{ fontWeight: 500 }}>{r.personName}</td>
+                  <td style={{ fontFamily: "monospace", fontSize: 12, color: "var(--text-secondary)" }}>{r.rut || "—"}</td>
                   <td style={{ fontVariantNumeric: "tabular-nums" }}>${r.amount?.toFixed(2)}</td>
                   <td style={{ fontFamily: "monospace", fontSize: 12, color: "var(--text-secondary)" }}>{r.accountNumber || "—"}</td>
                   <td style={{ fontSize: 12, color: "var(--text-secondary)" }}>{r.bankCode || "—"}</td>
@@ -733,7 +735,7 @@ function ReimbursementGroup({ group, reimbursements, dispatch, toast }) {
               <tr>
                 <td colSpan={1} style={{ padding: "10px 20px", fontWeight: 600, fontSize: 13, color: "var(--text-secondary)" }}>Total</td>
                 <td style={{ padding: "10px 20px", fontWeight: 700 }}>${fmt(total)}</td>
-                <td colSpan={6} />
+                <td colSpan={7} />
               </tr>
             </tfoot>
           </table>
