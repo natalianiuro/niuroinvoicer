@@ -5,7 +5,6 @@ import {
   LayoutDashboard, FileText, CalendarHeart,
   Monitor, CreditCard, UserCheck, Menu, X,
 } from "lucide-react";
-
 const navItems = [
   { href: "/",           label: "Dashboard",  icon: LayoutDashboard },
   { href: "/team",       label: "Team",       icon: CalendarHeart },
@@ -37,12 +36,7 @@ export default function Sidebar() {
           );
         })}
       </nav>
-      <div className="sidebar-footer">
-        <Link href="/invoices/generator" className="sidebar-generator-link">
-          <FileText size={14} />
-          <span>Invoice Generator</span>
-        </Link>
-      </div>
+      <div className="sidebar-footer" />
     </>
   );
 

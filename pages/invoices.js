@@ -1,11 +1,9 @@
 import { useState } from "react";
 import Head from "next/head";
-import Link from "next/link";
-import Modal from "@/components/ui/Modal";
-import SearchBar from "@/components/ui/SearchBar";
 import StatusSelect from "@/components/ui/StatusSelect";
+import SearchBar from "@/components/ui/SearchBar";
 import DeleteButton from "@/components/ui/DeleteButton";
-import { useStore, newId } from "@/lib/store";
+import { useStore } from "@/lib/store";
 import { useToast } from "@/components/ui/Toast";
 import { FileText } from "lucide-react";
 
@@ -16,70 +14,12 @@ const STATUS_OPTIONS = [
   { value: "paid", label: "Paid", badgeClass: "badge--green" },
 ];
 
-function AddInvoiceModal({ onClose }) {
-  const { dispatch, state } = useStore();
-  const toast = useToast();
-  const nextNum = String(state.invoices.length + 1).padStart(4, "0");
-  const [form, setForm] = useState({
-    invoiceNumber: nextNum, vendorName: "", amount: "",
-    issueDate: new Date().toISOString().slice(0, 10), dueDate: "",
-  });
-  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!form.vendorName.trim() || !form.amount) return;
-    dispatch({
-      type: "ADD_INVOICE",
-      payload: { id: newId(), ...form, amount: parseFloat(form.amount), status: "to_issue" },
-    });
-    toast(`Invoice #${form.invoiceNumber} added`, "success");
-    onClose();
-  };
-
-  return (
-    <Modal title="Add Invoice" onClose={onClose}>
-      <form onSubmit={handleSubmit}>
-        <div className="form-row">
-          <div className="form-group">
-            <label className="form-label">Invoice #</label>
-            <input className="form-input" value={form.invoiceNumber} onChange={(e) => set("invoiceNumber", e.target.value)} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Client / Vendor *</label>
-            <input className="form-input" value={form.vendorName} onChange={(e) => set("vendorName", e.target.value)} required />
-          </div>
-        </div>
-        <div className="form-group">
-          <label className="form-label">Amount (USD) *</label>
-          <input className="form-input" type="number" min="0" step="0.01" value={form.amount} onChange={(e) => set("amount", e.target.value)} required />
-        </div>
-        <div className="form-row">
-          <div className="form-group">
-            <label className="form-label">Issue Date</label>
-            <input className="form-input" type="date" value={form.issueDate} onChange={(e) => set("issueDate", e.target.value)} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Due Date</label>
-            <input className="form-input" type="date" value={form.dueDate} onChange={(e) => set("dueDate", e.target.value)} />
-          </div>
-        </div>
-        <div className="form-actions">
-          <button type="button" className="btn btn--ghost" onClick={onClose}>Cancel</button>
-          <button type="submit" className="btn btn--primary">Add Invoice</button>
-        </div>
-      </form>
-    </Modal>
-  );
-}
-
 export default function Invoices() {
   const { state, dispatch } = useStore();
   const toast = useToast();
   const { invoices } = state;
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
-  const [showAdd, setShowAdd] = useState(false);
 
   const filtered = invoices.filter((inv) => {
     const matchSearch =
@@ -97,15 +37,9 @@ export default function Invoices() {
     <>
       <Head><title>Invoices — Niuro HR</title></Head>
       <div>
-        <div className="page-header-row">
-          <div>
-            <h1 className="page-title">Invoices</h1>
-            <p className="page-subtitle">{invoices.length} invoices · ${pending.toLocaleString("en-US", { minimumFractionDigits: 2 })} outstanding</p>
-          </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <Link href="/invoices/generator" className="btn btn--ghost">Invoice Generator</Link>
-            <button className="btn btn--primary" onClick={() => setShowAdd(true)}>+ Add Invoice</button>
-          </div>
+        <div className="page-header">
+          <h1 className="page-title">Invoices</h1>
+          <p className="page-subtitle">{invoices.length} invoices · ${pending.toLocaleString("en-US", { minimumFractionDigits: 2 })} outstanding</p>
         </div>
 
         <div className="card-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)", maxWidth: 600 }}>
@@ -144,11 +78,8 @@ export default function Invoices() {
               <div className="empty-state__icon"><FileText size={28} color="var(--text-muted)" /></div>
               <div className="empty-state__title">No invoices found</div>
               <div className="empty-state__sub">
-                {search || filterStatus !== "all" ? "Try adjusting your filters." : "Track your first invoice."}
+                {search || filterStatus !== "all" ? "Try adjusting your filters." : "No invoices to display."}
               </div>
-              {!search && filterStatus === "all" && (
-                <button className="btn btn--primary" onClick={() => setShowAdd(true)}>+ Add Invoice</button>
-              )}
             </div>
           ) : (
             <table className="hr-table">
@@ -193,8 +124,6 @@ export default function Invoices() {
             </table>
           )}
         </div>
-
-        {showAdd && <AddInvoiceModal onClose={() => setShowAdd(false)} />}
       </div>
     </>
   );
