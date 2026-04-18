@@ -3,7 +3,7 @@ import Layout from "@/components/layout/Layout";
 import { StoreProvider } from "@/lib/store";
 import { ToastProvider } from "@/components/ui/Toast";
 
-const MAINTENANCE = true;
+const MAINTENANCE = false;
 
 function MaintenancePage() {
   return (
