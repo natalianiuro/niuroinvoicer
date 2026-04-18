@@ -5,7 +5,7 @@ import SearchBar from "@/components/ui/SearchBar";
 import DeleteButton from "@/components/ui/DeleteButton";
 import { useStore, newId } from "@/lib/store";
 import { useToast } from "@/components/ui/Toast";
-import { UserCheck, CheckSquare, BarChart2, TrendingDown } from "lucide-react";
+import { UserCheck, CheckSquare, BarChart2, TrendingDown, Copy, Check } from "lucide-react";
 import { COUNTRIES, getCountry } from "@/lib/countries";
 import { clients as CLIENT_LIST } from "@/lib/data/mock";
 
@@ -44,6 +44,89 @@ function clientName(id) {
   return CLIENT_LIST.find(c => c.id === id)?.name || id || "—";
 }
 
+function onboardingStatus(checklist) {
+  const vals = Object.values(checklist);
+  if (vals.every(Boolean))  return { label: "Completed",   cls: "badge--green" };
+  if (vals.some(Boolean))   return { label: "In Progress", cls: "badge--yellow" };
+  return                           { label: "Pending",     cls: "badge--gray" };
+}
+
+function CopyButton({ text }) {
+  const [copied, setCopied] = useState(false);
+  const handle = () => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+  return (
+    <button onClick={handle} className="btn btn--ghost" style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, padding: "4px 10px" }}>
+      {copied ? <Check size={12} /> : <Copy size={12} />}
+      {copied ? "Copied!" : "Copy"}
+    </button>
+  );
+}
+
+const WELCOME_DOC = (name) => `Welcome to Niuro, ${name || "[Name]"}!
+
+We're excited to have you join the team. At Niuro, we work with international clients across different industries, providing high-quality engineering and technical talent. Your role is a key part of making that happen.
+
+WORKING MODEL
+You'll be embedded within a client's team, working closely with their product, engineering, and business stakeholders. This means adapting to their processes and communication style while representing Niuro's standards of quality and professionalism.
+
+WHAT WE EXPECT FROM YOU
+· Clear and timely communication — proactively update your client and the Niuro team on your progress.
+· Availability — be present and responsive during agreed working hours.
+· Proactivity — don't wait to be told what to do next. Raise blockers early, propose solutions, and take ownership.
+
+BEFORE YOUR FIRST DAY
+Before you start, we'll schedule an onboarding session with you. In that session we'll:
+· Review the client context and what to expect in your first weeks
+· Validate that all your accesses and tools are ready
+· Answer any questions you may have
+· Make sure everything is in place so your first day runs smoothly
+
+We're here to support you — don't hesitate to reach out to the Niuro team at any point.
+
+Welcome aboard!
+— The Niuro Team`;
+
+const EMAIL_ES = (name) => `Asunto: ¡Bienvenido/a a Niuro! 🎉
+
+Hola ${name || "[Nombre]"},
+
+¡Nos alegra mucho tenerte en el equipo! Antes de tu fecha de ingreso queremos coordinar contigo una sesión de onboarding para dejarte todo listo para el primer día.
+
+En esa sesión vamos a:
+· Darte contexto del cliente y del proyecto
+· Revisar que tengas todos los accesos y herramientas necesarios
+· Resolver cualquier duda que tengas antes de empezar
+
+¿Tienes disponibilidad esta semana para una llamada de 30–45 minutos? Cualquier franja que te acomode nos sirve.
+
+¡Nos vemos pronto!
+
+[Tu nombre]
+Niuro`;
+
+const EMAIL_EN = (name) => `Subject: Welcome to Niuro! 🎉
+
+Hey ${name || "[Name]"},
+
+We're really excited to have you on board! Before your start date, we'd love to set up a quick onboarding call to make sure everything's ready for day one.
+
+In that call we'll:
+· Walk you through the client context and what your first weeks will look like
+· Double-check that all your accesses and tools are set up
+· Answer any questions you might have before you get started
+
+Would you be free for a 30–45 min call sometime this week? Just let us know what works best for you.
+
+Looking forward to it!
+
+[Your name]
+Niuro`;
+
 // ══════════════════════════════════════════════════════════════
 // TAB 1 — ONBOARDING
 // ══════════════════════════════════════════════════════════════
@@ -59,24 +142,66 @@ const EMPTY_CHECKLIST = { contractSigned: false, ndaSigned: false, niuroCredenti
 
 function OnboardingDetailModal({ record, onClose }) {
   const { dispatch } = useStore();
+  const [emailLang, setEmailLang] = useState("es");
   const done = Object.values(record.checklist).filter(Boolean).length;
+  const status = onboardingStatus(record.checklist);
+  const emailText = emailLang === "es" ? EMAIL_ES(record.personName) : EMAIL_EN(record.personName);
+
+  const blockStyle = { background: "var(--bg-subtle, #f7f7f6)", borderRadius: 8, padding: "14px 16px", fontSize: 12, fontFamily: "monospace", whiteSpace: "pre-wrap", color: "var(--text-secondary)", lineHeight: 1.65, maxHeight: 220, overflowY: "auto" };
+  const sectionHeader = (title) => (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+      <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary, #1a1a1a)" }}>{title}</span>
+    </div>
+  );
+
   return (
-    <Modal title={`Onboarding — ${record.personName}`} onClose={onClose}>
-      <p style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 16 }}>
-        {record.role} · {record.client ? clientName(record.client) : "No client"} · Start: {record.startDate || "—"}
-      </p>
-      <div className="checklist">
-        {CHECKLIST_ITEMS.map(item => (
-          <label key={item.key} className={`checklist-item${record.checklist[item.key] ? " checklist-item--done" : ""}`}>
-            <input type="checkbox" checked={!!record.checklist[item.key]} onChange={() => dispatch({ type: "TOGGLE_ONBOARDING_CHECK", payload: { id: record.id, key: item.key } })} />
-            <span>{item.label}</span>
-          </label>
-        ))}
+    <Modal title={`Onboarding — ${record.personName}`} onClose={onClose} width={580}>
+      {/* Summary */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>{record.role}</span>
+        {record.client && <><span style={{ color: "var(--border)" }}>·</span><span style={{ fontSize: 13, color: "var(--text-secondary)" }}>{clientName(record.client)}</span></>}
+        {record.startDate && <><span style={{ color: "var(--border)" }}>·</span><span style={{ fontSize: 13, color: "var(--text-secondary)" }}>Start: {record.startDate}</span></>}
+        <span className={`badge ${status.cls}`}>{status.label}</span>
       </div>
-      {record.notes && <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--border-light)" }}>{record.notes}</p>}
-      <div style={{ marginTop: 16, fontSize: 13, color: "var(--text-secondary)" }}>
-        Completed: <strong>{done}/{CHECKLIST_ITEMS.length}</strong>
+
+      {/* Checklist */}
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Checklist <span style={{ fontWeight: 400, color: "var(--text-muted)" }}>({done}/{CHECKLIST_ITEMS.length})</span></div>
+        <div className="checklist">
+          {CHECKLIST_ITEMS.map(item => (
+            <label key={item.key} className={`checklist-item${record.checklist[item.key] ? " checklist-item--done" : ""}`}>
+              <input type="checkbox" checked={!!record.checklist[item.key]} onChange={() => dispatch({ type: "TOGGLE_ONBOARDING_CHECK", payload: { id: record.id, key: item.key } })} />
+              <span>{item.label}</span>
+            </label>
+          ))}
+        </div>
+        {record.notes && <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 10 }}>{record.notes}</p>}
       </div>
+
+      {/* Welcome Document */}
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+          {sectionHeader("Welcome Document")}
+          <CopyButton text={WELCOME_DOC(record.personName)} />
+        </div>
+        <div style={blockStyle}>{WELCOME_DOC(record.personName)}</div>
+      </div>
+
+      {/* Email Template */}
+      <div style={{ marginBottom: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+          {sectionHeader("Email Template")}
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <div className="filter-tabs" style={{ gap: 4 }}>
+              <button className={`filter-tab${emailLang === "es" ? " filter-tab--active" : ""}`} style={{ fontSize: 11, padding: "3px 10px" }} onClick={() => setEmailLang("es")}>ES</button>
+              <button className={`filter-tab${emailLang === "en" ? " filter-tab--active" : ""}`} style={{ fontSize: 11, padding: "3px 10px" }} onClick={() => setEmailLang("en")}>EN</button>
+            </div>
+            <CopyButton text={emailText} />
+          </div>
+        </div>
+        <div style={blockStyle}>{emailText}</div>
+      </div>
+
       <div className="form-actions"><button className="btn btn--ghost" onClick={onClose}>Close</button></div>
     </Modal>
   );
@@ -164,6 +289,8 @@ function OnboardingTab() {
             <thead><tr>
               <th>Contractor</th>
               <th>Client</th>
+              <th>Start Date</th>
+              <th>Status</th>
               {CHECKLIST_ITEMS.map(i => <th key={i.key} style={{ fontSize: 10, maxWidth: 80, textAlign: "center" }}>{i.label}</th>)}
               <th>Progress</th><th></th>
             </tr></thead>
@@ -183,6 +310,10 @@ function OnboardingTab() {
                       </div>
                     </td>
                     <td style={{ fontSize: 12, color: "var(--text-secondary)" }}>{o.client ? clientName(o.client) : "—"}</td>
+                    <td style={{ fontSize: 12, color: "var(--text-secondary)" }}>{o.startDate || "—"}</td>
+                    <td>
+                      {(() => { const s = onboardingStatus(o.checklist); return <span className={`badge ${s.cls}`}>{s.label}</span>; })()}
+                    </td>
                     {CHECKLIST_ITEMS.map(item => (
                       <td key={item.key} style={{ textAlign: "center" }}>
                         <CheckIcon done={!!o.checklist[item.key]} onClick={() => dispatch({ type: "TOGGLE_ONBOARDING_CHECK", payload: { id: o.id, key: item.key } })} />
